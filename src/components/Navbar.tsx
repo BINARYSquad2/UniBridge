@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const NAV_LINKS = [
   { label: 'Возможности', to: '/#features' },
-  { label: 'Менторы', to: '/#mentors' },
+  { label: 'Менторы', to: '/mentorslist' },
   { label: 'О платформе', to: '/#stats' },
   { label: 'Кабинет', to: '/profile' },
 ];

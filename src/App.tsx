@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar'
 import { Auth } from './pages/Auth'
 import Profile from './pages/Profile'
 import Roadmap from './pages/Roadmap'
+import Mentorslist from './pages/Mentorslist.tsx' 
 
 function ScrollToLocation() {
   const location = useLocation()
@@ -49,6 +50,7 @@ function App() {
           <Route path="register" element={<Auth key="register" initialMode="register" />} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
+          <Route path="mentorslist" element={<ProtectedRoute><Mentorslist /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
