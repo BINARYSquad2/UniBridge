@@ -9,13 +9,12 @@ import (
 )
 
 type Config struct {
-	Host        string
-	Port        string
-	DatabaseURL string
-	AuthSecret  string
-	LLMAPIKey   string
-	LLMBaseURL  string
-	LLMModel    string
+	Host         string
+	Port         string
+	DatabaseURL  string
+	AuthSecret   string
+	GeminiAPIKey string
+	LLMModel     string
 }
 
 func New() (Config, error) {
@@ -34,13 +33,12 @@ func New() (Config, error) {
 	}
 
 	return Config{
-		Host:        getEnv("HOST", "0.0.0.0"),
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: databaseURL,
-		AuthSecret:  authSecret,
-		LLMAPIKey:   getEnv("LLM_API_KEY", ""),
-		LLMBaseURL:  getEnv("LLM_BASE_URL", "https://api.openai.com/v1"),
-		LLMModel:    getEnv("LLM_MODEL", "gpt-4o-mini"),
+		Host:         getEnv("HOST", "0.0.0.0"),
+		Port:         getEnv("PORT", "8080"),
+		DatabaseURL:  databaseURL,
+		AuthSecret:   authSecret,
+		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
+		LLMModel:     getEnv("LLM_MODEL", "gemini-2.5-flash,gemini-2.5-pro"),
 	}, nil
 }
 

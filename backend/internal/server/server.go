@@ -17,14 +17,16 @@ func New(cfg config.Config, db *sql.DB) *http.Server {
 	auth := handlers.Auth{DB: db, JWTSecret: []byte(cfg.AuthSecret)}
 	mux.HandleFunc("/api/v1/auth/register", auth.Register)
 	mux.HandleFunc("/api/v1/auth/login", auth.Login)
+	mux.HandleFunc("GET /api/v1/profile/me", auth.CurrentProfile)
 	roadmap := handlers.Roadmap{
 		DB:        db,
 		JWTSecret: []byte(cfg.AuthSecret),
-		APIKey:    cfg.LLMAPIKey,
-		BaseURL:   cfg.LLMBaseURL,
+		APIKey:    cfg.GeminiAPIKey,
 		Model:     cfg.LLMModel,
 	}
-	mux.HandleFunc("/api/v1/roadmap/generate", roadmap.Generate)
+	mux.HandleFunc("POST /api/v1/roadmap/generate", roadmap.Generate)
+	mux.HandleFunc("GET /api/v1/roadmap/current", roadmap.Current)
+	mux.HandleFunc("PATCH /api/v1/roadmap/tasks/{taskID}", roadmap.UpdateTask)
 
 	addr := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 

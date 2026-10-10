@@ -3,11 +3,36 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+type recordingGeminiGenerator struct {
+	models []string
+}
+
+func (g *recordingGeminiGenerator) Generate(_ context.Context, model, _ string) (string, error) {
+	g.models = append(g.models, model)
+	plan := roadmapPlan{
+		Title:             "Учебный план",
+		Summary:           "План подготовки",
+		StartGrade:        9,
+		EndGrade:          11,
+		StartAcademicYear: "2026-2027",
+		EndAcademicYear:   "2028-2029",
+		WeeklyHours:       8,
+		Steps: []roadmapStep{{
+			ID: "step-1", Phase: "9 класс", Title: "Фундамент", Description: "Основы",
+			Status: "in_progress", EstimatedTime: "2026-2027", ImpactScore: 70,
+			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа"}},
+		}},
+	}
+	if model == "first-model" {
+		plan.EndGrade = 10
+	}
+	encoded, err := json.Marshal(plan)
+	return string(encoded), err
+}
 
 func TestAcademicYearRange(t *testing.T) {
 	tests := []struct {
@@ -72,54 +97,10 @@ func TestModelCandidatesParsesAndLimitsCommaSeparatedModels(t *testing.T) {
 }
 
 func TestGeneratePlanFallsBackWhenFirstModelReturnsInvalidGradeRange(t *testing.T) {
-	var requestedModels []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request struct {
-			Model string `json:"model"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			t.Errorf("decode request: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		requestedModels = append(requestedModels, request.Model)
-
-		plan := roadmapPlan{
-			Title:             "Учебный план",
-			Summary:           "План подготовки",
-			StartGrade:        9,
-			EndGrade:          11,
-			StartAcademicYear: "2026-2027",
-			EndAcademicYear:   "2028-2029",
-			WeeklyHours:       8,
-			Steps: []roadmapStep{{
-				ID: "step-1", Phase: "9 класс", Title: "Фундамент", Description: "Основы",
-				Status: "in_progress", EstimatedTime: "2026-2027", ImpactScore: 70,
-				Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа"}},
-			}},
-		}
-		if request.Model == "first-model" {
-			plan.EndGrade = 10
-		}
-		content, err := json.Marshal(plan)
-		if err != nil {
-			t.Errorf("encode plan: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"choices": []any{map[string]any{
-				"message": map[string]string{"content": string(content)},
-			}},
-		})
-	}))
-	defer server.Close()
-
+	generator := &recordingGeminiGenerator{}
 	handler := Roadmap{
-		APIKey:  "test-key",
-		BaseURL: server.URL,
-		Model:   "first-model, second-model",
+		Model:     "first-model, second-model",
+		generator: generator,
 	}
 	profile := roadmapProfile{SchoolGrade: 9}
 
@@ -130,7 +111,7 @@ func TestGeneratePlanFallsBackWhenFirstModelReturnsInvalidGradeRange(t *testing.
 	if plan.EndGrade != 11 {
 		t.Fatalf("generatePlan() returned end grade %d, want 11", plan.EndGrade)
 	}
-	if len(requestedModels) != 2 || requestedModels[0] != "first-model" || requestedModels[1] != "second-model" {
-		t.Fatalf("requested models = %v, want [first-model second-model]", requestedModels)
+	if len(generator.models) != 2 || generator.models[0] != "first-model" || generator.models[1] != "second-model" {
+		t.Fatalf("requested models = %v, want [first-model second-model]", generator.models)
 	}
 }

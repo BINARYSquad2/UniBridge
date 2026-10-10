@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   MapPin, 
   CheckCircle2, 
@@ -13,64 +14,191 @@ import {
   Target
 } from 'lucide-react';
 
-// Данные пользователя
-const USER_DATA = {
-  name: 'Алексей Иванов',
-  role: 'Студент',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256',
-  level: 'Продвинутый',
+type UserRole = 'student' | 'mentor';
+
+interface StudentProfileData {
+  school_grade?: number;
+  interests: string[];
+  strengths: string[];
+  weaknesses: string[];
+  portfolio_stage: string;
+}
+
+interface CurrentProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  student_profile?: StudentProfileData;
+}
+
+interface RoadmapTask {
+  id: string;
+  title: string;
+  duration: string;
+  completed: boolean;
+}
+
+interface RoadmapStep {
+  id: string;
+  phase: string;
+  title: string;
+  description: string;
+  status: 'completed' | 'in_progress' | 'upcoming';
+  estimatedTime: string;
+  impactScore: number;
+  tasks: RoadmapTask[];
+  artifacts: string[];
+}
+
+interface CurrentRoadmap {
+  plan_id: string;
+  title: string;
+  summary: string;
+  start_grade: number;
+  end_grade: number;
+  start_academic_year: string;
+  end_academic_year: string;
+  weekly_hours: number;
+  steps: RoadmapStep[];
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
+const PORTFOLIO_STAGE_LABELS: Record<string, string> = {
+  starting: 'Только начинаю',
+  in_progress: 'Есть первые наработки',
+  achieving: 'Есть первые достижения',
+  completed: 'Портфолио готово',
 };
 
-const STATS = [
-  { label: 'Пройдено шагов', value: '18/24', accent: false },
-  { label: 'Часов обучения', value: '148', accent: true },
-  { label: 'Сессий с ментором', value: '8', accent: false },
-  { label: 'Текущий Streak', value: '12 дней', accent: true },
-];
-
-// Roadmap (Дорожная карта)
-const ROADMAP_STAGES = [
-  {
-    id: 1,
-    stageTitle: 'Этап 1: Базовые концепции и архитектура',
-    status: 'completed', // completed | in-progress | locked
-    progress: 100,
-    steps: [
-      { id: '1-1', title: 'Основы структуры проекта и окружение', completed: true },
-      { id: '1-2', title: 'Проектирование схемы данных', completed: true },
-    ]
-  },
-  {
-    id: 2,
-    stageTitle: 'Этап 2: Практическая реализация и модули',
-    status: 'in-progress',
-    progress: 60,
-    steps: [
-      { id: '2-1', title: 'Интеграция сторонних сервисов и API', completed: true },
-      { id: '2-2', title: 'Оптимизация запросов и логика взаимодействия', completed: false },
-      { id: '2-3', title: 'Тестирование ключевых сценариев', completed: false },
-    ]
-  },
-  {
-    id: 3,
-    stageTitle: 'Этап 3: Финальная сборка и релиз',
-    status: 'locked',
-    progress: 0,
-    steps: [
-      { id: '3-1', title: 'Подготовка документации и деплой', completed: false },
-      { id: '3-2', title: 'Финальный разбор с ментором', completed: false },
-    ]
-  }
-];
-
-// Микро-шаги (быстрые задачи)
-const MICRO_STEPS = [
-  { id: 1, title: 'Изучить модуль миграций', time: '15 мин', done: true },
-  { id: 2, title: 'Решить 3 практические задачи', time: '25 мин', done: false },
-  { id: 3, title: 'Отправить вопрос ментору по тестам', time: '5 мин', done: false },
-];
-
 export const Profile: React.FC = () => {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<CurrentProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [roadmapError, setRoadmapError] = useState('');
+  const [roadmap, setRoadmap] = useState<CurrentRoadmap | null>(null);
+
+useEffect(() => {
+  const accessToken = localStorage.getItem('access_token');
+  if (!accessToken) {
+    navigate('/login', { replace: true });
+    return;
+  }
+
+  const controller = new AbortController();
+  const loadProfile = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/profile/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: controller.signal,
+      });
+      const result = await response.json().catch(() => null) as (CurrentProfile & { error?: string }) | null;
+
+      // 1. Если токен невалиден или пользователь не найден — чистим токен и редиректим
+      if (response.status === 401 || response.status === 404) {
+        localStorage.removeItem('access_token');
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(result && 'error' in result ? result.error : 'Не удалось загрузить профиль');
+      }
+
+      if (!result || !result.id || !result.role) {
+        throw new Error('Сервер вернул некорректный профиль');
+      }
+
+      // 2. Если роль student, но самого профиля ученика нет в БД — чистим токен и на логин
+      if (result.role === 'student' && !result.student_profile) {
+        localStorage.removeItem('access_token');
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      setProfile(result);
+
+      if (result.role === 'student') {
+        const roadmapResponse = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/current`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        });
+        if (roadmapResponse.status !== 404) {
+          const roadmapResult = await roadmapResponse.json().catch(() => null) as (CurrentRoadmap & { error?: string }) | null;
+          if (!roadmapResponse.ok) {
+            setRoadmapError(roadmapResult?.error ?? 'Не удалось загрузить roadmap');
+          } else if (!roadmapResult || !roadmapResult.plan_id || !Array.isArray(roadmapResult.steps)) {
+            setRoadmapError('Сервер вернул некорректный roadmap');
+          } else {
+            setRoadmap(roadmapResult);
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
+    } finally {
+      if (!controller.signal.aborted) setIsLoading(false);
+    }
+  };
+
+  void loadProfile();
+  return () => controller.abort();
+}, [navigate]);
+
+  if (isLoading) {
+    return <main className="landing__container min-h-screen pt-28">Загружаем профиль...</main>;
+  }
+
+  if (errorMessage) {
+    return (
+      <main className="landing__container min-h-screen pt-28">
+        <p role="alert" className="text-sm font-semibold text-red-700">{errorMessage}</p>
+      </main>
+    );
+  }
+
+  if (profile?.role !== 'student') {
+    return (
+      <main className="landing__container min-h-screen pt-28">
+        <section className="landing__feature-card space-y-3">
+          <h1 className="landing__feature-title">Профиль ученика</h1>
+          <p className="landing__feature-description">
+            {profile?.full_name}, раздел с классом, интересами и учебным планом доступен для аккаунтов ученика.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  const student = profile.student_profile;
+  if (!student) {
+    return <main className="landing__container min-h-screen pt-28">Профиль ученика не найден.</main>;
+  }
+
+  const stats = [
+    { label: 'Класс', value: student.school_grade ? `${student.school_grade} класс` : 'Не указан', accent: true },
+    { label: 'Интересы', value: String(student.interests.length), accent: false },
+    { label: 'Сильные стороны', value: String(student.strengths.length), accent: true },
+    { label: 'Точки роста', value: String(student.weaknesses.length), accent: false },
+  ];
+
+  const studentSections = [
+    { title: 'Интересы и направления', items: student.interests },
+    { title: 'Сильные стороны', items: student.strengths },
+    { title: 'Точки роста', items: student.weaknesses },
+  ];
+  const roadmapTasks = roadmap?.steps.flatMap((step) => step.tasks.map((task) => ({
+    ...task,
+    stepTitle: step.title,
+  }))) ?? [];
+  const totalRoadmapTasks = roadmapTasks.length;
+  const completedRoadmapTasks = roadmapTasks.filter((task) => task.completed).length;
+  const roadmapProgress = totalRoadmapTasks
+    ? Math.round((completedRoadmapTasks / totalRoadmapTasks) * 100)
+    : 0;
+
   return (
     <div className="landing-page min-h-screen">
       {/* Главный контейнер */}
@@ -83,13 +211,13 @@ export const Profile: React.FC = () => {
             <div className="space-y-2">
               <div className="landing__badge">
                 <GraduationCap />
-                Статус: {USER_DATA.level}
+                {student.school_grade ? `Ученик · ${student.school_grade} класс` : 'Ученик'}
               </div>
               <h1 className="landing__title text-3xl sm:text-4xl lg:text-4xl">
-                С возвращением, <span className="landing__title-accent">{USER_DATA.name.split(' ')[0]}</span>!
+                С возвращением, <span className="landing__title-accent">{profile.full_name.split(' ')[0]}</span>!
               </h1>
               <p className="landing__description text-sm sm:text-base">
-                Ваш прогресс по Roadmap за эту неделю вырос на <span className="font-bold text-brand">+12%</span>.
+                {profile.email} · {PORTFOLIO_STAGE_LABELS[student.portfolio_stage] ?? student.portfolio_stage}
               </p>
             </div>
             
@@ -102,7 +230,7 @@ export const Profile: React.FC = () => {
         {/* Сетка статистики */}
         <section className="landing__stats rounded-3xl border border-border">
           <div className="landing__stats-grid">
-            {STATS.map((stat, index) => (
+            {stats.map((stat, index) => (
               <div key={index} className="landing__stat">
                 <div className={`landing__stat-value ${stat.accent ? 'landing__stat-value--accent' : ''}`}>
                   {stat.value}
@@ -111,6 +239,26 @@ export const Profile: React.FC = () => {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {studentSections.map((section) => (
+            <div key={section.title} className="landing__feature-card space-y-4">
+              <h2 className="landing__feature-title">{section.title}</h2>
+              {section.items.length > 0 ? (
+                <ul className="space-y-2">
+                  {section.items.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-sm font-medium text-text-secondary">
+                      <Circle className="h-3.5 w-3.5 text-brand shrink-0 mt-1" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-text-secondary">Пока не заполнено</p>
+              )}
+            </div>
+          ))}
         </section>
 
         {/* Основной контент (Roadmap и Твой Ментор + Микро-шаги) */}
@@ -122,62 +270,86 @@ export const Profile: React.FC = () => {
               <h2 className="text-2xl font-black text-text-primary flex items-center gap-2">
                 <MapPin className="text-brand h-6 w-6" /> Roadmap обучения
               </h2>
-              <span className="text-xs font-bold text-brand bg-brand/10 px-3 py-1.5 rounded-full border border-brand/20">
-                Активный трек
-              </span>
+              {roadmap && (
+                <span className="text-xs font-bold text-brand bg-brand/10 px-3 py-1.5 rounded-full border border-brand/20">
+                  {roadmapProgress}% выполнено
+                </span>
+              )}
             </div>
 
-            <div className="grid gap-6">
-              {ROADMAP_STAGES.map((stage) => (
-                <div 
-                  key={stage.id} 
-                  className={`landing__feature-card ${stage.status === 'locked' ? 'opacity-60' : ''}`}
+            {roadmap ? (
+              <div className="grid gap-6">
+              {roadmap.steps.map((step) => {
+                const completedTasks = step.tasks.filter((task) => task.completed).length;
+                const stepProgress = step.tasks.length
+                  ? Math.round((completedTasks / step.tasks.length) * 100)
+                  : 0;
+                return (
+                <div
+                  key={step.id}
+                  className="landing__feature-card"
                 >
                   <div className="flex justify-between items-center mb-4">
                     <span className="landing__section-label">
-                      {stage.status === 'completed' && 'Завершено'}
-                      {stage.status === 'in-progress' && 'В процессе'}
-                      {stage.status === 'locked' && 'Заблокировано'}
+                      {step.phase} · {step.status === 'completed' ? 'Завершено' : step.status === 'in_progress' ? 'В процессе' : 'Запланировано'}
                     </span>
-                    <span className="text-xs font-bold text-brand">{stage.progress}%</span>
+                    <span className="text-xs font-bold text-brand">Impact {step.impactScore}/100</span>
                   </div>
 
-                  <h3 className="landing__feature-title mb-4">{stage.stageTitle}</h3>
+                  <h3 className="landing__feature-title mb-2">{step.title}</h3>
+                  <p className="text-sm text-text-secondary mb-4">{step.description}</p>
+                  <p className="text-xs font-semibold text-text-secondary mb-3">
+                    Срок: {step.estimatedTime} · Задач: {completedTasks}/{step.tasks.length}
+                  </p>
                   
                   {/* Прогресс-бар этапа */}
                   <div className="w-full h-2 bg-bg-primary rounded-full overflow-hidden border border-border mb-6">
                     <div 
                       className="h-full bg-brand rounded-full transition-all duration-500" 
-                      style={{ width: `${stage.progress}%` }}
+                      style={{ width: `${stepProgress}%` }}
                     ></div>
                   </div>
 
                   {/* Список подшагов */}
                   <div className="space-y-3">
-                    {stage.steps.map((step) => (
-                      <div key={step.id} className="flex items-start gap-3 text-sm">
-                        {step.completed ? (
+                    {step.tasks.map((task) => (
+                      <div key={task.id} className="flex items-start gap-3 text-sm">
+                        {task.completed ? (
                           <CheckCircle2 className="h-5 w-5 text-brand shrink-0 mt-0.5" />
                         ) : (
                           <Circle className="h-5 w-5 text-text-secondary shrink-0 mt-0.5" />
                         )}
-                        <span className={step.completed ? 'line-through text-text-secondary' : 'text-text-primary font-medium'}>
-                          {step.title}
+                        <span className={task.completed ? 'line-through text-text-secondary' : 'text-text-primary font-medium'}>
+                          {task.title} <span className="text-xs text-text-secondary">({task.duration})</span>
                         </span>
                       </div>
                     ))}
+                    {step.artifacts.length > 0 && (
+                      <p className="pt-2 text-xs text-text-secondary">
+                        Результаты: {step.artifacts.join(', ')}
+                      </p>
+                    )}
                   </div>
 
-                  {stage.status === 'in-progress' && (
+                  {step.status === 'in_progress' && (
                     <div className="mt-6 pt-4 border-t border-border flex justify-end">
-                      <button className="landing__primary-button py-2 px-4 text-sm">
-                        Продолжить этап
-                      </button>
+                      <Link to="/roadmap" className="landing__primary-button py-2 px-4 text-sm">Продолжить этап</Link>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+                );
+              })}
+              </div>
+            ) : (
+              <div className="landing__feature-card space-y-3">
+                <p className="text-sm text-text-secondary">
+                  {roadmapError || 'Активный план ещё не создан.'}
+                </p>
+                <Link to="/roadmap" className="landing__primary-button inline-flex">
+                  Создать учебный план <ChevronRight />
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Правая колонка: Твой Ментор и Микро-шаги */}
@@ -219,30 +391,28 @@ export const Profile: React.FC = () => {
               </h3>
 
               <div className="landing__feature-card space-y-3 p-5">
-                {MICRO_STEPS.map((micro) => (
+                {roadmapTasks.filter((task) => !task.completed).slice(0, 3).map((task) => (
                   <div 
-                    key={micro.id} 
+                    key={task.id}
                     className="p-3.5 rounded-xl bg-bg-primary border border-border flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3">
-                      {micro.done ? (
-                        <CheckCircle2 className="h-4 w-4 text-brand shrink-0" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-text-secondary shrink-0" />
-                      )}
-                      <span className={`text-xs font-bold ${micro.done ? 'line-through text-text-secondary' : 'text-text-primary'}`}>
-                        {micro.title}
+                      <Circle className="h-4 w-4 text-text-secondary shrink-0" />
+                      <span className="text-xs font-bold text-text-primary">
+                        {task.title}
                       </span>
                     </div>
                     <span className="text-[10px] font-semibold text-brand flex items-center gap-1 shrink-0">
-                      <Clock className="h-3 w-3" /> {micro.time}
+                      <Clock className="h-3 w-3" /> {task.duration}
                     </span>
                   </div>
                 ))}
 
-                <button className="landing__secondary-button w-full text-xs py-2 mt-1">
-                  + Добавить микро-шаг
-                </button>
+                {roadmapTasks.filter((task) => !task.completed).length === 0 && (
+                  <p className="text-xs text-text-secondary">
+                    {roadmap ? 'Все задачи плана выполнены.' : 'Сгенерируйте план, чтобы увидеть задачи.'}
+                  </p>
+                )}
               </div>
             </div>
 

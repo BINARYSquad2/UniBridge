@@ -23,7 +23,7 @@ export default function Landing() {
       <div className="landing__container">
         
         {/* Hero Section */}
-        <section className="landing__hero">
+        <section className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
           <div className="landing__hero-content">
             
             {/* Top Badge */}
@@ -41,26 +41,25 @@ export default function Landing() {
               и лучших экспертов
             </h1>
 
-            {/* Description */}
+            {/* Description (Пункт 1) */}
             <p className="landing__description">
               Мы создаем твой персональный маршрут поступления. Получи честный
-              опыт обучения из первых уст и работай с профессиональными
-              профориентаторами без переплат.
+              опыт обучения из первых уст и работай со студентами топовых ВУЗов.
             </p>
 
-            {/* Call to Actions */}
+            {/* Call to Actions (Пункт 10) */}
             <div className="landing__hero-actions">
               <button className="landing__primary-button">
-                <span>Подобрать ментора прямо сейчас</span>
+                <span>Подобрать ментора</span>
                 <ArrowRight />
               </button>
 
               <button className="landing__secondary-button">
-                Я хочу стать ментором
+                Стать наставником
               </button>
             </div>
 
-            {/* Social Proof Badges */}
+            {/* Social Proof Badges (Пункт 2, 3) */}
             <div className="landing__social-proof">
               <div className="landing__proof-item">
                 <ShieldCheck />
@@ -69,7 +68,7 @@ export default function Landing() {
 
               <div className="landing__proof-item">
                 <Globe />
-                <span>Менторы из 15+ стран</span>
+                <span>Менторы из топ университетов</span>
               </div>
 
               <div className="landing__proof-item">
@@ -83,44 +82,23 @@ export default function Landing() {
 
       </div>
 
-      {/* Statistics Section */}
-      <section id="stats" className="landing__stats">
-        <div className="landing__stats-grid">
-          <div className="landing__stat">
-            <div className="landing__stat-value landing__stat-value--accent">500+</div>
-            <div className="landing__stat-label">Проверенных менторов</div>
-          </div>
-          <div className="landing__stat">
-            <div className="landing__stat-value">98%</div>
-            <div className="landing__stat-label">Успешных поступлений</div>
-          </div>
-          <div className="landing__stat">
-            <div className="landing__stat-value">15+</div>
-            <div className="landing__stat-label">Стран мира</div>
-          </div>
-          <div className="landing__stat">
-            <div className="landing__stat-value landing__stat-value--accent">4.9</div>
-            <div className="landing__stat-label">Средняя оценка</div>
-          </div>
-        </div>
-      </section>
-
       {/* Features Section */}
       <section id="features" className="landing__features">
         <div className="landing__container">
           <div className="landing__section-header">
             <span className="landing__section-label">Почему UniBridge</span>
-            <h2 className="landing__section-title">Всё для успешного поступления в один клик</h2>
+            {/* Пункт 4 */}
+            <h2 className="landing__section-title">Все для успешного портфолио в один клик</h2>
           </div>
 
           <div className="landing__features-grid">
             
-            {/* Feature 1 */}
+            {/* Feature 1 (Пункт 5) */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Users />
               </div>
-              <h3 className="landing__feature-title">Менторство от студентов</h3>
+              <h3 className="landing__feature-title">Наставничество и помощь в построении сильного профиля</h3>
               <p className="landing__feature-description">
                 Общайся с теми, кто уже проходит этот путь прямо сейчас в топовых ВУЗах мира.
               </p>
@@ -131,19 +109,19 @@ export default function Landing() {
                 </li>
                 <li className="landing__feature-list-item">
                   <span className="landing__bullet" />
-                  <span>Помощь с мотивационными эссе</span>
+                  <span>Помощь с мотивационными эссе и внеучебной активностью</span>
                 </li>
               </ul>
             </div>
 
-            {/* Feature 2 */}
+            {/* Feature 2 (Пункт 6) */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Brain />
               </div>
-              <h3 className="landing__feature-title">AI-Подбор маршрута</h3>
+              <h3 className="landing__feature-title">AI-маршрут и аналитика</h3>
               <p className="landing__feature-description">
-                Умные алгоритмы анализируют твои интересы, оценки и бюджет для поиска лучших вариантов.
+                Алгоритмы учитывают твои интересы, сильные стороны и зоны роста для постройки конкурентного портфолио.
               </p>
               <ul className="landing__feature-list">
                 <li className="landing__feature-list-item">
@@ -152,19 +130,19 @@ export default function Landing() {
                 </li>
                 <li className="landing__feature-list-item">
                   <span className="landing__bullet" />
-                  <span>Анализ шансов на грант</span>
+                  <span>Выявление точек роста и сильных сторон</span>
                 </li>
               </ul>
             </div>
 
-            {/* Feature 3 */}
+            {/* Feature 3 (Пункт 7) */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Target />
               </div>
-              <h3 className="landing__feature-title">Прямая поддержка</h3>
+              <h3 className="landing__feature-title">Сопровождение и поддержка</h3>
               <p className="landing__feature-description">
-                Сопровождение на каждом этапе — от выбора специальности до подачи документов.
+                Сопровождение при постройке персонального трека и поддержка от студентов на каждом этапе.
               </p>
               <ul className="landing__feature-list">
                 <li className="landing__feature-list-item">
@@ -182,13 +160,13 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Top Mentors Catalog Section */}
+      {/* Top Mentors Catalog Section (Пункт 8) */}
       <section id="mentors" className="landing__mentors">
         <div className="landing__container">
           <div className="landing__mentors-header">
             <div>
               <span className="landing__section-label">Каталог</span>
-              <h2 className="landing__section-title">Популярные менторы</h2>
+              <h2 className="landing__section-title">Каталог менторов</h2>
             </div>
             <a href="#mentors" className="landing__mentors-link">
               <span>Смотреть всех менторов</span>
@@ -198,7 +176,6 @@ export default function Landing() {
 
           <div className="landing__mentor-grid">
             
-            {/* Mentor Card Sample */}
             {[
               { name: 'Алихан Смаилов', role: 'Студент', uni: 'NUS (Сингапур)', rating: '4.9', tags: ['Computer Science', 'Full Scholarship', 'SAT'] },
               { name: 'Диана Аспанова', role: 'Выпускник', uni: 'KAIST (Южная Корея)', rating: '5.0', tags: ['AI & Robotics', 'GKS Grant', 'IELTS'] },
@@ -241,13 +218,13 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* CTA Section (Пункт 9) */}
       <section className="landing__cta">
         <div className="landing__cta-container">
           <div className="landing__cta-content">
             <h2 className="landing__cta-title">Готов сделать первый шаг к поступлению?</h2>
             <p className="landing__cta-description">
-              Зарегистрируйся прямо сейчас и получи первую консультацию по подбору ментора бесплатно.
+              Зарегистрируйся прямо сейчас и начни строить свое будущее прямо сейчас.
             </p>
             <button className="landing__cta-button">
               Начать бесплатно

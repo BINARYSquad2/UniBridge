@@ -51,23 +51,40 @@ interface AuthProps {
   onClose?: () => void;
 }
 
-interface AuthResponse {
-  access_token: string;
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
-    role: Role;
-    school_grade?: number;
-  };
-}
-
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
+const API_ERROR_MESSAGES: Record<string, string> = {
+  'invalid request body': 'Проверьте данные в форме и попробуйте ещё раз.',
+  'invalid registration details': 'Проверьте имя, фамилию, email и пароль.',
+  'invalid login details': 'Проверьте email и пароль.',
+  'school_grade must be between 7 and 11': 'Выберите класс с 7-го по 11-й.',
+  'invalid portfolio_stage': 'Выберите этап портфолио.',
+  'email is already registered': 'Этот email уже зарегистрирован.',
+  'could not create student profile': 'Не удалось создать профиль ученика. Попробуйте ещё раз.',
+  'could not create account': 'Не удалось создать аккаунт. Попробуйте ещё раз.',
+  'could not sign in': 'Не удалось выполнить вход. Попробуйте позже.',
+};
+
+const getApiErrorMessage = (body: string, fallback: string) => {
+  let message = body.trim();
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (parsed && typeof parsed === 'object') {
+      const response = parsed as { error?: unknown; message?: unknown };
+      const responseMessage = response.error ?? response.message;
+      if (typeof responseMessage === 'string') message = responseMessage;
+    }
+  } catch {
+    // A plain-text or HTML error body is still useful to surface below.
+  }
+
+  if (!message) return fallback;
+  return API_ERROR_MESSAGES[message] ?? message;
+};
 
 export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) => {
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [step, setStep] = useState<number>(1); // 1: Аккаунт, 2: Класс, 3: Интересы, 4: Сильные стороны, 5: Точки роста, 6: Портфолио
+  const [step, setStep] = useState<number>(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -75,6 +92,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
 
   const [formData, setFormData] = useState({
     name: '',
+    surname: '',
     email: '',
     password: '',
     role: 'student' as Role,
@@ -104,10 +122,15 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
     setErrorMessage('');
     setSuccessMessage('');
 
+    // Очищаем старый токен перед новым запросом
+    localStorage.removeItem('access_token');
+
     const payload = endpoint === 'login'
       ? { email: formData.email, password: formData.password }
       : {
-          full_name: formData.name,
+          name: formData.name,
+          surname: formData.surname,
+          full_name: `${formData.name} ${formData.surname}`.trim(),
           email: formData.email,
           password: formData.password,
           role: formData.role,
@@ -126,25 +149,49 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const result = await response.json().catch(() => null) as AuthResponse | { error?: string } | null;
 
+      const responseBody = await response.text();
+
+      // Если ответ от сервера не OK (401, 404, 400 и т.д.)
       if (!response.ok) {
-        throw new Error(result && 'error' in result ? result.error : 'Не удалось выполнить запрос');
-      }
-      if (!result || !('access_token' in result)) {
-        throw new Error('Сервер вернул некорректный ответ');
+        if (response.status === 404) {
+          throw new Error(getApiErrorMessage(
+            responseBody,
+            'Сервис авторизации не найден (404). Проверьте адрес API и запущен ли сервер.',
+          ));
+          
+        }
+        if (endpoint === 'login' && response.status === 401) {
+          throw new Error('Неверный email или пароль');
+        }
+        throw new Error(getApiErrorMessage(
+          responseBody,
+          endpoint === 'login' ? 'Не удалось выполнить вход' : 'Ошибка регистрации',
+        ));
+        
       }
 
-      localStorage.setItem('access_token', result.access_token);
-      setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
-      onClose?.();
-      navigate('/profile');
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      // Проверка наличия access_token
+      const result = responseBody ? JSON.parse(responseBody) as { access_token?: string } : null;
+        if (!result || typeof result !== 'object' || !result.access_token) {
+          if (endpoint === 'login') {
+            throw new Error('Неверный email или пароль');
+          }
+          throw new Error('Сервер вернул некорректный ответ');
+        }
+
+        // Успешный вход или регистрация
+        localStorage.setItem('access_token', result.access_token);
+        setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
+        
+        onClose?.();
+        navigate('/profile');
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Неверный email или пароль');
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,13 +201,11 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
       return;
     }
 
-    // Если ментор — завершаем сразу на 1 шаге
     if (formData.role === 'mentor') {
       await submitAuth('register');
       return;
     }
 
-    // Пошаговый переход для ученика
     if (step < 6) {
       setStep((prev) => prev + 1);
     } else {
@@ -176,11 +221,9 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
 
   return (
     <div className="min-h-screen w-full bg-bg-primary flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
-      {/* Декоративный фон */}
       <div className="pointer-events-none absolute -top-20 left-1/2 -z-10 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-brand/15 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 right-10 -z-10 h-64 w-64 rounded-full bg-brand-hover/10 blur-3xl" />
 
-      {/* Кнопка "Назад" на главную */}
       {onClose && (
         <button
           onClick={onClose}
@@ -193,10 +236,8 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
         </button>
       )}
 
-      {/* Карточка */}
       <div className="w-full max-w-xl bg-bg-surface rounded-3xl border border-border/80 p-8 sm:p-10 shadow-xl transition-all relative z-10">
         
-        {/* Индикатор прогресса (только при регистрации ученика со 2 шага) */}
         {mode === 'register' && formData.role === 'student' && (
           <div className="mb-6">
             <div className="flex justify-between text-xs font-bold text-text-secondary mb-2">
@@ -213,13 +254,12 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             <div className="h-1.5 w-full bg-bg-primary rounded-full overflow-hidden">
               <div
                 className="h-full bg-brand transition-all duration-300"
-                style={{ width: `${(step / 5) * 100}%` }}
+                style={{ width: `${(step / 6) * 100}%` }}
               />
             </div>
           </div>
         )}
 
-        {/* Шапка */}
         <div className="text-center mb-8">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-text-primary font-black text-2xl shadow-xs mb-4">
             U
@@ -244,27 +284,42 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           </p>
         </div>
 
-        {/* Форма */}
         <form onSubmit={handleNext} className="space-y-5">
-          
-          {/* ЭКРАН 1: Основные данные */}
           {step === 1 && (
             <>
               {mode === 'register' && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
-                    Полное имя
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    placeholder="Иван Иванов"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                      Имя
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      placeholder="Иван"
+                      value={formData.name}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                      Фамилия
+                    </label>
+                    <input
+                      type="text"
+                      name="surname"
+                      required
+                      maxLength={128}
+                      autoComplete="family-name"
+                      placeholder="Иванов"
+                      value={formData.surname}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors"
+                    />
+                  </div>
+                </>
               )}
 
               <div>
@@ -338,11 +393,9 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                   </select>
                 </div>
               )}
-
             </>
           )}
 
-          {/* ЭКРАН 2: Класс */}
           {step === 2 && mode === 'register' && formData.role === 'student' && (
             <div>
               <label htmlFor="schoolGrade" className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
@@ -363,7 +416,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {/* ЭКРАН 3: Интересы (Предметы и направления) */}
           {step === 3 && mode === 'register' && (
             <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
               {SUBJECT_DIRECTIONS.map((item) => {
@@ -386,7 +438,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {/* ЭКРАН 4: Сильные стороны (Навыки) */}
           {step === 4 && mode === 'register' && (
             <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
               {SKILLS_LIST.map((skill) => {
@@ -409,7 +460,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {/* ЭКРАН 5: Что хотите улучшить (Навыки) */}
           {step === 5 && mode === 'register' && (
             <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
               {SKILLS_LIST.map((skill) => {
@@ -432,7 +482,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {/* ЭКРАН 6: Этап в построении маршрута / Портфолио */}
           {step === 6 && mode === 'register' && (
             <div className="space-y-3">
               {PORTFOLIO_STAGES.map((stage) => {
@@ -463,7 +512,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {/* Кнопки управления */}
           {errorMessage && (
             <p role="alert" className="text-sm font-semibold text-red-600">
               {errorMessage}
@@ -474,6 +522,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
               {successMessage}
             </p>
           )}
+
           <div className="flex gap-3 pt-4">
             {step > 1 && (
               <button
@@ -502,7 +551,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           </div>
         </form>
 
-        {/* Переключение режима (только на 1 шаге) */}
         {step === 1 && (
           <div className="mt-8 text-center text-xs font-semibold text-text-secondary">
             {mode === 'login' ? (
@@ -513,6 +561,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                   onClick={() => {
                     setMode('register');
                     setStep(1);
+                    setErrorMessage('');
                     navigate('/register');
                   }}
                   className="font-bold text-brand hover:underline"
@@ -528,6 +577,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                   onClick={() => {
                     setMode('login');
                     setStep(1);
+                    setErrorMessage('');
                     navigate('/login');
                   }}
                   className="font-bold text-brand hover:underline"

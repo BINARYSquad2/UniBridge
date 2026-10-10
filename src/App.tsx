@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar'
 import { Auth } from './pages/Auth'
 import Profile from './pages/Profile'
 import Roadmap from './pages/Roadmap'
+import Analytics from './pages/Analytics'
 
 function ScrollToLocation() {
   const location = useLocation()
@@ -32,10 +33,25 @@ function PublicLayout() {
   )
 }
 
+function hasActiveJWT(): boolean {
+  const token = localStorage.getItem('access_token')
+  if (!token) return false
+
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number }
+    return typeof payload.exp === 'number' && payload.exp > Date.now() / 1000
+  } catch {
+    return false
+  }
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  return localStorage.getItem('access_token')
-    ? children
-    : <Navigate to="/login" replace />
+  if (hasActiveJWT()) return children
+  localStorage.removeItem('access_token')
+  return <Navigate to="/login" replace />
 }
 
 function App() {
@@ -49,6 +65,7 @@ function App() {
           <Route path="register" element={<Auth key="register" initialMode="register" />} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
+          <Route path="analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

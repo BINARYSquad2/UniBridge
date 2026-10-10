@@ -16,9 +16,8 @@ Create `backend/.env` and set the PostgreSQL connection string:
 ```env
 DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=disable
 AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters-long
-LLM_API_KEY=your-openai-compatible-api-key
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o-mini,gpt-4o
+GEMINI_API_KEY=your-gemini-api-key
+LLM_MODEL=gemini-2.5-flash,gemini-2.5-pro
 ```
 
 On startup, the server connects to PostgreSQL and applies unapplied SQL files
@@ -44,6 +43,8 @@ The server will listen on `http://0.0.0.0:8080` by default.
 	`portfolio_stage` (`starting`, `in_progress`, `achieving`, or `completed`);
 	mentors do not need these profile fields.
 - `POST /api/v1/auth/login` accepts `email` and `password`.
+- `GET /api/v1/profile/me` returns the authenticated user; `student_profile` is
+	included only for users with the `student` role.
 - Successful registration and login return the user and a 24-hour JWT in
 	`access_token`. The user object includes `school_grade` for students. Use a
 	random `AUTH_SECRET` of at least 32 characters.
@@ -51,10 +52,13 @@ The server will listen on `http://0.0.0.0:8080` by default.
 ## Roadmap generation
 
 - `POST /api/v1/roadmap/generate` requires `Authorization: Bearer <access_token>`.
+- `GET /api/v1/roadmap/current` returns the authenticated student's active saved plan.
+- `PATCH /api/v1/roadmap/tasks/{taskID}` accepts `{"completed": true|false}` and saves task progress.
 - The endpoint reads the authenticated student's interests, strengths,
 	weaknesses, portfolio stage, and school grade, then returns a JSON plan from
-	the current grade through grade 11.
-- Configure `LLM_API_KEY`, and optionally `LLM_BASE_URL` and `LLM_MODEL`, for an
-	OpenAI-compatible Chat Completions API. `LLM_MODEL` is a comma-separated
+	the current grade through grade 11. Generated versions, steps, tasks, and
+	artifacts are saved transactionally in `roadmap_plans` and its child tables.
+- Configure `GEMINI_API_KEY` and optionally `LLM_MODEL` for Gemini. The official
+	Go SDK selects the API endpoint; no base URL setting is required. `LLM_MODEL` is a comma-separated
 	ordered list; the handler tries the next model when a request or generated
 	plan fails validation (up to four distinct models).

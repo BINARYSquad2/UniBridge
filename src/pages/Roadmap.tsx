@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   CheckCircle2, 
   Circle, 
@@ -33,6 +33,7 @@ interface RoadmapStep {
 }
 
 interface GeneratedRoadmap {
+  plan_id: string;
   title: string;
   summary: string;
   start_grade: number;
@@ -69,22 +70,82 @@ export const Roadmap: React.FC = () => {
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedRoadmap | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [updatingTaskID, setUpdatingTaskID] = useState<string | null>(null);
 
-  const toggleTask = (stepId: string, taskId: string) => {
-    setSteps(prevSteps =>
-      prevSteps.map(step => {
-        if (step.id !== stepId) return step;
-        const updatedTasks = step.tasks.map(t => 
-          t.id === taskId ? { ...t, completed: !t.completed } : t
-        );
-        const allCompleted = updatedTasks.every(t => t.completed);
-        return {
-          ...step,
-          tasks: updatedTasks,
-          status: allCompleted ? 'completed' : 'in_progress'
-        };
-      })
-    );
+  useEffect(() => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return;
+
+    const controller = new AbortController();
+    void fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/current`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (response.status === 404) return;
+      const result = await response.json().catch(() => null) as (GeneratedRoadmap & { error?: string }) | null;
+      if (!response.ok) {
+        throw new Error(result && 'error' in result ? result.error : 'Не удалось загрузить roadmap');
+      }
+      if (!result || !result.plan_id || !Array.isArray(result.steps) || result.steps.length === 0) {
+        throw new Error('Сервер вернул некорректный roadmap');
+      }
+
+      setGeneratedPlan(result);
+      setSteps(result.steps);
+      setActiveStepId(result.steps[0].id);
+      setIsGenerated(true);
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить roadmap');
+    });
+
+    return () => controller.abort();
+  }, []);
+
+  const toggleTask = async (stepId: string, taskId: string) => {
+    if (updatingTaskID) return;
+    const step = steps.find((item) => item.id === stepId);
+    const task = step?.tasks.find((item) => item.id === taskId);
+    if (!step || !task) return;
+
+    const completed = !task.completed;
+    const updatedTasks = step.tasks.map((item) => item.id === taskId ? { ...item, completed } : item);
+    const status = updatedTasks.every((item) => item.completed)
+      ? 'completed'
+      : updatedTasks.some((item) => item.completed) ? 'in_progress' : 'upcoming';
+
+    if (generatedPlan?.plan_id) {
+      const accessToken = localStorage.getItem('access_token');
+      if (!accessToken) {
+        setErrorMessage('Сессия истекла. Войдите снова.');
+        return;
+      }
+      setUpdatingTaskID(taskId);
+      setErrorMessage('');
+      try {
+        const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ completed }),
+        });
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) {
+          throw new Error(result && 'error' in result ? result.error : 'Не удалось сохранить задачу');
+        }
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить задачу');
+        return;
+      } finally {
+        setUpdatingTaskID(null);
+      }
+    }
+
+    setSteps((previous) => previous.map((item) => item.id === stepId
+      ? { ...item, tasks: updatedTasks, status }
+      : item));
   };
 
   const handleGenerateRoadmap = async () => {
@@ -107,7 +168,7 @@ export const Roadmap: React.FC = () => {
       if (!response.ok) {
         throw new Error(result && 'error' in result ? result.error : 'Не удалось сгенерировать план');
       }
-      if (!result || !Array.isArray(result.steps) || result.steps.length === 0) {
+      if (!result || !result.plan_id || !Array.isArray(result.steps) || result.steps.length === 0) {
         throw new Error('Сервер вернул пустой или некорректный план');
       }
 
@@ -332,11 +393,12 @@ export const Roadmap: React.FC = () => {
                   <div
                     key={task.id}
                     onClick={() => toggleTask(activeStep.id, task.id)}
+                    aria-disabled={updatingTaskID !== null}
                     className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
                       task.completed 
                         ? 'bg-bg-primary/60 border-border text-text-secondary' 
                         : 'bg-bg-primary border-border text-text-primary hover:border-brand/50'
-                    }`}
+                    } ${updatingTaskID === task.id ? 'opacity-60' : ''}`}
                   >
                     <div className="flex items-center gap-3">
                       {task.completed ? (

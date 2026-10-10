@@ -1,31 +1,57 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/lib/pq"
+	"google.golang.org/genai"
 )
 
 type Roadmap struct {
 	DB        *sql.DB
 	JWTSecret []byte
 	APIKey    string
-	BaseURL   string
 	Model     string
+	generator geminiTextGenerator
 }
 
 const maxLLMModelAttempts = 4
+
+const roadmapSystemInstruction = "Ты консультант по школьному академическому планированию. Верни только JSON-объект без markdown. Построй реалистичный, персонализированный план от текущего класса ученика до конца 11 класса. Учитывай интересы, сильные стороны, точки роста и этап портфолио. Разбей план на этапы по учебным годам; не придумывай гарантированные результаты и точные даты экзаменов."
+
+type geminiTextGenerator interface {
+	Generate(ctx context.Context, model, prompt string) (string, error)
+}
+
+type geminiSDKGenerator struct {
+	client *genai.Client
+}
+
+func (g geminiSDKGenerator) Generate(ctx context.Context, model, prompt string) (string, error) {
+	response, err := g.client.Models.GenerateContent(ctx, model,
+		[]*genai.Content{genai.NewContentFromText(prompt, "user")},
+		&genai.GenerateContentConfig{
+			SystemInstruction: genai.NewContentFromText(roadmapSystemInstruction, ""),
+			Temperature:       genai.Ptr(float32(0.4)),
+			ResponseMIMEType:  "application/json",
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+	if response == nil {
+		return "", errors.New("Gemini returned an empty response")
+	}
+	return response.Text(), nil
+}
 
 type roadmapProfile struct {
 	SchoolGrade    int      `json:"school_grade"`
@@ -36,6 +62,7 @@ type roadmapProfile struct {
 }
 
 type roadmapPlan struct {
+	PlanID            string        `json:"plan_id,omitempty"`
 	Title             string        `json:"title"`
 	Summary           string        `json:"summary"`
 	StartGrade        int           `json:"start_grade"`
@@ -65,28 +92,6 @@ type roadmapTask struct {
 	Completed bool   `json:"completed"`
 }
 
-type chatCompletionRequest struct {
-	Model          string         `json:"model"`
-	Messages       []chatMessage  `json:"messages"`
-	ResponseFormat responseFormat `json:"response_format"`
-	Temperature    float64        `json:"temperature"`
-}
-
-type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type responseFormat struct {
-	Type string `json:"type"`
-}
-
-type chatCompletionResponse struct {
-	Choices []struct {
-		Message chatMessage `json:"message"`
-	} `json:"choices"`
-}
-
 func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -97,7 +102,7 @@ func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := h.authenticatedUserID(r)
+	userID, err := authenticatedUserID(r, h.JWTSecret)
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "authentication required")
 		return
@@ -132,28 +137,315 @@ func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 			plan.Steps[stepIndex].Tasks[taskIndex].Completed = false
 		}
 	}
+	plan.PlanID, err = h.savePlan(r.Context(), userID, plan)
+	if err != nil {
+		log.Printf("roadmap: save generated plan: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not save roadmap")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(plan)
+}
+
+func (h Roadmap) Current(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	userID, err := authenticatedUserID(r, h.JWTSecret)
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	plan, err := h.loadActivePlan(r.Context(), userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeAuthError(w, http.StatusNotFound, "roadmap not found")
+		return
+	}
+	if err != nil {
+		log.Printf("roadmap: load active plan: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not load roadmap")
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(plan)
 }
 
-func (h Roadmap) authenticatedUserID(r *http.Request) (string, error) {
-	header := strings.Fields(r.Header.Get("Authorization"))
-	if len(header) != 2 || !strings.EqualFold(header[0], "Bearer") {
-		return "", errors.New("missing bearer token")
+type updateRoadmapTaskRequest struct {
+	Completed bool `json:"completed"`
+}
+
+func (h Roadmap) UpdateTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	userID, err := authenticatedUserID(r, h.JWTSecret)
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var input updateRoadmapTaskRequest
+	if err := decodeAuthRequest(w, r, &input); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
 	}
 
-	claims := &jwt.RegisteredClaims{}
-	token, err := jwt.ParseWithClaims(header[1], claims, func(token *jwt.Token) (any, error) {
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, errors.New("unexpected signing method")
-		}
-		return h.JWTSecret, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
-	if err != nil || !token.Valid || claims.Subject == "" {
-		return "", errors.New("invalid bearer token")
+	tx, err := h.DB.BeginTx(r.Context(), nil)
+	if err != nil {
+		log.Printf("roadmap: begin task update: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not update task")
+		return
 	}
-	return claims.Subject, nil
+	defer tx.Rollback()
+
+	var stepID string
+	err = tx.QueryRowContext(r.Context(), `
+		UPDATE roadmap_tasks AS task
+		SET completed = $1,
+		    completed_at = CASE
+		        WHEN $1 THEN COALESCE(task.completed_at, CURRENT_TIMESTAMP)
+		        ELSE NULL
+		    END,
+		    updated_at = CURRENT_TIMESTAMP
+		FROM roadmap_steps AS step
+		JOIN roadmap_plans AS plan ON plan.id = step.roadmap_plan_id
+		JOIN student_profiles AS profile ON profile.id = plan.student_profile_id
+		WHERE task.id = $2
+		  AND task.roadmap_step_id = step.id
+		  AND plan.is_active
+		  AND profile.user_id = $3
+		RETURNING step.id::text
+	`, input.Completed, r.PathValue("taskID"), userID).Scan(&stepID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeAuthError(w, http.StatusNotFound, "roadmap task not found")
+		return
+	}
+	if err != nil {
+		log.Printf("roadmap: update task: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
+
+	var stepStatus string
+	err = tx.QueryRowContext(r.Context(), `
+		UPDATE roadmap_steps AS step
+		SET status = CASE
+		    WHEN NOT EXISTS (
+		        SELECT 1 FROM roadmap_tasks WHERE roadmap_step_id = step.id AND NOT completed
+		    ) THEN 'completed'
+		    WHEN EXISTS (
+		        SELECT 1 FROM roadmap_tasks WHERE roadmap_step_id = step.id AND completed
+		    ) THEN 'in_progress'
+		    ELSE 'upcoming'
+		END
+		WHERE step.id = $1
+		RETURNING status
+	`, stepID).Scan(&stepStatus)
+	if err != nil {
+		log.Printf("roadmap: update step status: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not update roadmap step")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("roadmap: commit task update: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not update task")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"step_status": stepStatus})
+}
+
+func (h Roadmap) savePlan(ctx context.Context, userID string, plan roadmapPlan) (string, error) {
+	tx, err := h.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var profileID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT id::text FROM student_profiles WHERE user_id = $1 FOR UPDATE
+	`, userID).Scan(&profileID)
+	if err != nil {
+		return "", fmt.Errorf("find student profile: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE roadmap_plans SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+		WHERE student_profile_id = $1 AND is_active
+	`, profileID); err != nil {
+		return "", fmt.Errorf("deactivate previous plan: %w", err)
+	}
+
+	var planID string
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO roadmap_plans (
+			student_profile_id, title, summary, start_grade, end_grade,
+			start_academic_year, end_academic_year, weekly_hours, is_active
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
+		RETURNING id::text
+	`, profileID, plan.Title, plan.Summary, plan.StartGrade, plan.EndGrade,
+		plan.StartAcademicYear, plan.EndAcademicYear, plan.WeeklyHours).Scan(&planID)
+	if err != nil {
+		return "", fmt.Errorf("insert roadmap plan: %w", err)
+	}
+
+	for stepIndex, step := range plan.Steps {
+		var stepID string
+		err := tx.QueryRowContext(ctx, `
+			INSERT INTO roadmap_steps (
+				roadmap_plan_id, source_id, position, phase, title, description,
+				status, estimated_time, impact_score
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			RETURNING id::text
+		`, planID, step.ID, stepIndex+1, step.Phase, step.Title, step.Description,
+			step.Status, step.EstimatedTime, step.ImpactScore).Scan(&stepID)
+		if err != nil {
+			return "", fmt.Errorf("insert roadmap step %q: %w", step.ID, err)
+		}
+
+		for taskIndex, task := range step.Tasks {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO roadmap_tasks (roadmap_step_id, source_id, position, title, duration)
+				VALUES ($1, $2, $3, $4, $5)
+			`, stepID, task.ID, taskIndex+1, task.Title, task.Duration); err != nil {
+				return "", fmt.Errorf("insert roadmap task %q: %w", task.ID, err)
+			}
+		}
+
+		for artifactIndex, artifact := range step.Artifacts {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO roadmap_artifacts (roadmap_step_id, position, title)
+				VALUES ($1, $2, $3)
+			`, stepID, artifactIndex+1, artifact); err != nil {
+				return "", fmt.Errorf("insert roadmap artifact for step %q: %w", step.ID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit roadmap plan: %w", err)
+	}
+	return planID, nil
+}
+
+func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan, error) {
+	tx, err := h.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return roadmapPlan{}, fmt.Errorf("begin read transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var plan roadmapPlan
+	err = tx.QueryRowContext(ctx, `
+		SELECT plan.id::text, plan.title, plan.summary, plan.start_grade, plan.end_grade,
+		       plan.start_academic_year, plan.end_academic_year, plan.weekly_hours
+		FROM roadmap_plans AS plan
+		JOIN student_profiles AS profile ON profile.id = plan.student_profile_id
+		WHERE profile.user_id = $1 AND plan.is_active
+	`, userID).Scan(&plan.PlanID, &plan.Title, &plan.Summary, &plan.StartGrade, &plan.EndGrade,
+		&plan.StartAcademicYear, &plan.EndAcademicYear, &plan.WeeklyHours)
+	if err != nil {
+		return roadmapPlan{}, err
+	}
+
+	stepRows, err := tx.QueryContext(ctx, `
+		SELECT id::text, source_id, phase, title, description, status,
+		       estimated_time, impact_score
+		FROM roadmap_steps
+		WHERE roadmap_plan_id = $1
+		ORDER BY position
+	`, plan.PlanID)
+	if err != nil {
+		return roadmapPlan{}, fmt.Errorf("load roadmap steps: %w", err)
+	}
+	type storedStep struct {
+		step roadmapStep
+		dbID string
+	}
+	var storedSteps []storedStep
+	for stepRows.Next() {
+		var item storedStep
+		if err := stepRows.Scan(&item.dbID, &item.step.ID, &item.step.Phase, &item.step.Title,
+			&item.step.Description, &item.step.Status, &item.step.EstimatedTime, &item.step.ImpactScore); err != nil {
+			stepRows.Close()
+			return roadmapPlan{}, fmt.Errorf("scan roadmap step: %w", err)
+		}
+		item.step.Tasks = []roadmapTask{}
+		item.step.Artifacts = []string{}
+		storedSteps = append(storedSteps, item)
+	}
+	if err := stepRows.Err(); err != nil {
+		stepRows.Close()
+		return roadmapPlan{}, fmt.Errorf("iterate roadmap steps: %w", err)
+	}
+	if err := stepRows.Close(); err != nil {
+		return roadmapPlan{}, fmt.Errorf("close roadmap steps: %w", err)
+	}
+
+	for _, item := range storedSteps {
+		taskRows, err := tx.QueryContext(ctx, `
+			SELECT source_id, title, duration, completed
+			FROM roadmap_tasks
+			WHERE roadmap_step_id = $1
+			ORDER BY position
+		`, item.dbID)
+		if err != nil {
+			return roadmapPlan{}, fmt.Errorf("load roadmap tasks: %w", err)
+		}
+		for taskRows.Next() {
+			var task roadmapTask
+			if err := taskRows.Scan(&task.ID, &task.Title, &task.Duration, &task.Completed); err != nil {
+				taskRows.Close()
+				return roadmapPlan{}, fmt.Errorf("scan roadmap task: %w", err)
+			}
+			item.step.Tasks = append(item.step.Tasks, task)
+		}
+		if err := taskRows.Err(); err != nil {
+			taskRows.Close()
+			return roadmapPlan{}, fmt.Errorf("iterate roadmap tasks: %w", err)
+		}
+		if err := taskRows.Close(); err != nil {
+			return roadmapPlan{}, fmt.Errorf("close roadmap tasks: %w", err)
+		}
+
+		artifactRows, err := tx.QueryContext(ctx, `
+			SELECT title FROM roadmap_artifacts
+			WHERE roadmap_step_id = $1
+			ORDER BY position
+		`, item.dbID)
+		if err != nil {
+			return roadmapPlan{}, fmt.Errorf("load roadmap artifacts: %w", err)
+		}
+		for artifactRows.Next() {
+			var artifact string
+			if err := artifactRows.Scan(&artifact); err != nil {
+				artifactRows.Close()
+				return roadmapPlan{}, fmt.Errorf("scan roadmap artifact: %w", err)
+			}
+			item.step.Artifacts = append(item.step.Artifacts, artifact)
+		}
+		if err := artifactRows.Err(); err != nil {
+			artifactRows.Close()
+			return roadmapPlan{}, fmt.Errorf("iterate roadmap artifacts: %w", err)
+		}
+		if err := artifactRows.Close(); err != nil {
+			return roadmapPlan{}, fmt.Errorf("close roadmap artifacts: %w", err)
+		}
+		plan.Steps = append(plan.Steps, item.step)
+	}
+	if plan.Steps == nil {
+		plan.Steps = []roadmapStep{}
+	}
+	if err := tx.Commit(); err != nil {
+		return roadmapPlan{}, fmt.Errorf("commit read transaction: %w", err)
+	}
+	return plan, nil
 }
 
 func (h Roadmap) loadStudentProfile(ctx context.Context, userID string) (roadmapProfile, error) {
@@ -181,23 +473,29 @@ func (h Roadmap) generatePlan(ctx context.Context, profile roadmapProfile, start
 		return roadmapPlan{}, fmt.Errorf("encode student profile: %w", err)
 	}
 
-	messages := []chatMessage{
-		{
-			Role:    "system",
-			Content: "Ты консультант по школьному академическому планированию. Верни только JSON-объект без markdown. Построй реалистичный, персонализированный план от текущего класса ученика до конца 11 класса. Учитывай интересы, сильные стороны, точки роста и этап портфолио. Разбей план на этапы по учебным годам; не придумывай гарантированные результаты и точные даты экзаменов.",
-		},
-		{
-			Role: "user",
-			Content: fmt.Sprintf("Профиль ученика JSON: %s\nНачальный класс: %d. Конечный класс: 11. Учебный год начала: %d-%d. Учебный год окончания: %d-%d.\nВерни поля title, summary, start_grade, end_grade, start_academic_year, end_academic_year, weekly_hours, steps. Каждый step должен иметь id, phase, title, description, status (in_progress или upcoming), estimatedTime, impactScore (0-100), tasks и artifacts. Каждая task: id, title, duration, completed=false. Укажи start_grade=%d, end_grade=11, start_academic_year=%d-%d, end_academic_year=%d-%d.",
-				profileJSON, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
-				profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1),
-		},
+	userPrompt := fmt.Sprintf("Профиль ученика JSON: %s\nНачальный класс: %d. Конечный класс: 11. Учебный год начала: %d-%d. Учебный год окончания: %d-%d.\nВерни поля title, summary, start_grade, end_grade, start_academic_year, end_academic_year, weekly_hours, steps. Каждый step должен иметь id, phase, title, description, status (in_progress или upcoming), estimatedTime, impactScore (0-100), tasks и artifacts. Каждая task: id, title, duration, completed=false. Укажи start_grade=%d, end_grade=11, start_academic_year=%d-%d, end_academic_year=%d-%d.",
+		profileJSON, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
+		profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1)
+
+	generator := h.generator
+	if generator == nil {
+		client, err := genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  h.APIKey,
+			Backend: genai.BackendGeminiAPI,
+			HTTPClient: &http.Client{
+				Timeout: 28 * time.Second,
+			},
+		})
+		if err != nil {
+			return roadmapPlan{}, fmt.Errorf("create Gemini client: %w", err)
+		}
+		generator = geminiSDKGenerator{client: client}
 	}
 
 	var failures []error
 	models := h.modelCandidates()
 	for _, model := range models {
-		plan, err := h.generatePlanWithModel(ctx, model, messages)
+		plan, err := h.generatePlanWithModel(ctx, generator, model, userPrompt)
 		if err == nil {
 			err = validateRoadmapPlan(plan, profile.SchoolGrade, startYear, endYear)
 		}
@@ -231,57 +529,18 @@ func (h Roadmap) modelCandidates() []string {
 		}
 	}
 	if len(models) == 0 {
-		return []string{"gpt-4o-mini"}
+		return []string{"gemini-2.5-flash"}
 	}
 	return models
 }
 
-func (h Roadmap) generatePlanWithModel(ctx context.Context, model string, messages []chatMessage) (roadmapPlan, error) {
-	requestBody := chatCompletionRequest{
-		Model:          model,
-		Messages:       messages,
-		ResponseFormat: responseFormat{Type: "json_object"},
-		Temperature:    0.4,
-	}
-	encoded, err := json.Marshal(requestBody)
+func (h Roadmap) generatePlanWithModel(ctx context.Context, generator geminiTextGenerator, model, userPrompt string) (roadmapPlan, error) {
+	content, err := generator.Generate(ctx, model, userPrompt)
 	if err != nil {
-		return roadmapPlan{}, fmt.Errorf("encode LLM request: %w", err)
+		return roadmapPlan{}, fmt.Errorf("generate with Gemini: %w", err)
 	}
-	baseURL := strings.TrimRight(h.BaseURL, "/")
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(encoded))
-	if err != nil {
-		return roadmapPlan{}, fmt.Errorf("create LLM request: %w", err)
-	}
-	request.Header.Set("Authorization", "Bearer "+h.APIKey)
-	request.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 28 * time.Second}
-	response, err := client.Do(request)
-	if err != nil {
-		return roadmapPlan{}, fmt.Errorf("call LLM API: %w", err)
-	}
-	defer response.Body.Close()
-	responseData, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
-	if err != nil {
-		return roadmapPlan{}, fmt.Errorf("read LLM response: %w", err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return roadmapPlan{}, fmt.Errorf("LLM API returned status %d: %s", response.StatusCode, string(responseData))
-	}
-
-	var completion chatCompletionResponse
-	if err := json.Unmarshal(responseData, &completion); err != nil {
-		return roadmapPlan{}, fmt.Errorf("decode LLM response: %w", err)
-	}
-	if len(completion.Choices) == 0 {
-		return roadmapPlan{}, errors.New("LLM response has no choices")
-	}
-
 	var plan roadmapPlan
-	if err := json.Unmarshal([]byte(completion.Choices[0].Message.Content), &plan); err != nil {
+	if err := json.Unmarshal([]byte(content), &plan); err != nil {
 		return roadmapPlan{}, fmt.Errorf("decode generated plan: %w", err)
 	}
 	return plan, nil
