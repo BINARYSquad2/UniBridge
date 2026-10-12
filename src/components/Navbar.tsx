@@ -28,17 +28,16 @@ export const Navbar: React.FC = () => {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-bg-surface/80 backdrop-blur-md border-b border-border shadow-xs py-3'
-          : 'bg-transparent py-5'
-      }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
+        ? 'bg-bg-surface/80 backdrop-blur-md border-b border-border shadow-xs py-3'
+        : 'bg-transparent py-5'
+        }`}
     >
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
-          
+
           {/* Логотип */}
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/#main" className="flex items-center gap-3 group">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-text-primary font-black text-xl shadow-xs transition-transform duration-300 group-hover:scale-105">
               U
             </div>
@@ -64,15 +63,9 @@ export const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center gap-3">
             <Link
               to="/login"
-              className="px-4 py-2 text-sm font-bold text-text-primary hover:text-brand transition-colors duration-200"
-            >
-              Войти
-            </Link>
-            <Link
-              to="/register"
               className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
             >
-              Начать бесплатно
+              Авторизация
             </Link>
           </div>
 
@@ -112,16 +105,9 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/login"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-center py-2.5 text-base font-bold text-text-primary border border-border rounded-xl hover:bg-bg-primary transition-colors"
-              >
-                Войти
-              </Link>
-              <Link
-                to="/register"
-                onClick={() => setIsMobileMenuOpen(false)}
                 className="text-center py-2.5 text-base font-bold text-text-primary bg-brand rounded-xl hover:bg-brand-hover transition-colors shadow-xs"
               >
-                Начать бесплатно
+                Авторизация
               </Link>
             </nav>
           </div>

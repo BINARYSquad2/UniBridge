@@ -21,11 +21,11 @@ export default function Landing() {
 
       {/* Main Container */}
       <div className="landing__container">
-        
+
         {/* Hero Section */}
-        <section className="landing__hero">
+        <section id="main" className="landing__hero">
           <div className="landing__hero-content">
-            
+
             {/* Top Badge */}
             <div>
               <div className="landing__badge">
@@ -114,7 +114,7 @@ export default function Landing() {
           </div>
 
           <div className="landing__features-grid">
-            
+
             {/* Feature 1 */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
@@ -197,7 +197,7 @@ export default function Landing() {
           </div>
 
           <div className="landing__mentor-grid">
-            
+
             {/* Mentor Card Sample */}
             {[
               { name: 'Алихан Смаилов', role: 'Студент', uni: 'NUS (Сингапур)', rating: '4.9', tags: ['Computer Science', 'Full Scholarship', 'SAT'] },

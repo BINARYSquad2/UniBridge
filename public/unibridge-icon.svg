@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="45 20 408 408" role="img" aria-labelledby="title desc">
+  <title id="title">UniBridge</title>
+  <desc id="desc">Orange and yellow graduation cap symbol on a transparent background.</desc>
+  <defs>
+    <linearGradient id="capGradient" x1="0%" y1="70%" x2="100%" y2="20%">
+      <stop offset="0%" stop-color="#E85B08"/>
+      <stop offset="48%" stop-color="#F69B28"/>
+      <stop offset="100%" stop-color="#FFE34B"/>
+    </linearGradient>
+    <linearGradient id="crownGradient" x1="0%" y1="0%" x2="100%" y2="30%">
+      <stop offset="0%" stop-color="#E85B08"/>
+      <stop offset="58%" stop-color="#EC7615"/>
+      <stop offset="100%" stop-color="#F18B20"/>
+    </linearGradient>
+    <linearGradient id="tasselGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F8A12A"/>
+      <stop offset="100%" stop-color="#E86A0A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mortarboard top -->
+  <path d="M256 71 L454 176 L256 281 L58 176 Z" fill="url(#capGradient)"/>
+
+  <!-- Lower crown of the cap -->
+  <path d="M124 244 L256 315 L388 244 L388 288
+           C388 304 377 315 362 323 L256 378 L150 323
+           C135 315 124 304 124 288 Z" fill="url(#crownGradient)"/>
+
+  <!-- Tassel attached to the right side -->
+  <path d="M400 205 L400 289
+           C400 307 409 320 427 327
+           L438 332
+           C440 323 437 317 431 314
+           C422 309 420 302 420 290
+           L420 198 Z" fill="url(#tasselGradient)"/>
+</svg>
