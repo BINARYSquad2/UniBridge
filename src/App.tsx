@@ -8,6 +8,7 @@ import { Auth } from './pages/Auth'
 import Profile from './pages/Profile'
 import Roadmap from './pages/Roadmap'
 import Analytics from './pages/Analytics'
+import KanbanBoard from './pages/Kanban'
 
 function ScrollToLocation() {
   const location = useLocation()
@@ -65,6 +66,7 @@ function App() {
           <Route path="register" element={<Auth key="register" initialMode="register" />} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
+          <Route path="kanban" element={<ProtectedRoute><KanbanBoard /></ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

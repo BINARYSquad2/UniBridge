@@ -53,7 +53,7 @@ The server will listen on `http://0.0.0.0:8080` by default.
 
 - `POST /api/v1/roadmap/generate` requires `Authorization: Bearer <access_token>`.
 - `GET /api/v1/roadmap/current` returns the authenticated student's active saved plan.
-- `PATCH /api/v1/roadmap/tasks/{taskID}` accepts `{"completed": true|false}` and saves task progress.
+- `PATCH /api/v1/roadmap/tasks/{taskID}` accepts `{"completed": true|false}` and saves task progress and elapsed minutes.
 - The endpoint reads the authenticated student's interests, strengths,
 	weaknesses, portfolio stage, and school grade, then returns a JSON plan from
 	the current grade through grade 11. Generated versions, steps, tasks, and
@@ -62,3 +62,13 @@ The server will listen on `http://0.0.0.0:8080` by default.
 	Go SDK selects the API endpoint; no base URL setting is required. `LLM_MODEL` is a comma-separated
 	ordered list; the handler tries the next model when a request or generated
 	plan fails validation (up to four distinct models).
+- `POST /api/v1/roadmap/tasks/{taskID}/start` starts a task timer.
+- `POST /api/v1/roadmap/tasks/{taskID}/micro-steps` accepts `title` and `estimated_minutes` and adds a micro-step.
+- `POST /api/v1/roadmap/micro-steps/{microStepID}/start` starts its timer;
+	`PATCH /api/v1/roadmap/micro-steps/{microStepID}` accepts `completed` and
+	optionally `actual_minutes`.
+- `GET /api/v1/roadmap/metrics` returns task/micro-step timing aggregates, type
+	breakdowns, overdue counts, and daily activity. State changes are append-only
+	in `roadmap_task_events`.
+- Migrations `000006`–`000009` add task timing, event history, micro-steps, and
+	micro-step timing fields.

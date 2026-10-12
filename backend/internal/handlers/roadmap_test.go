@@ -3,16 +3,20 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
 
 type recordingGeminiGenerator struct {
-	models []string
+	models  []string
+	prompts []string
 }
 
-func (g *recordingGeminiGenerator) Generate(_ context.Context, model, _ string) (string, error) {
+func (g *recordingGeminiGenerator) Generate(_ context.Context, model, prompt string) (string, error) {
 	g.models = append(g.models, model)
+	g.prompts = append(g.prompts, prompt)
+	estimatedMinutes := 120
 	plan := roadmapPlan{
 		Title:             "Учебный план",
 		Summary:           "План подготовки",
@@ -24,7 +28,7 @@ func (g *recordingGeminiGenerator) Generate(_ context.Context, model, _ string) 
 		Steps: []roadmapStep{{
 			ID: "step-1", Phase: "9 класс", Title: "Фундамент", Description: "Основы",
 			Status: "in_progress", EstimatedTime: "2026-2027", ImpactScore: 70,
-			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа"}},
+			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа", TaskType: "academic", EstimatedMinutes: &estimatedMinutes}},
 		}},
 	}
 	if model == "first-model" {
@@ -57,6 +61,7 @@ func TestAcademicYearRange(t *testing.T) {
 }
 
 func TestValidateRoadmapPlanRequiresRequestedGradeRange(t *testing.T) {
+	estimatedMinutes := 120
 	plan := roadmapPlan{
 		Title:             "Учебный план",
 		Summary:           "Подготовка по выбранным направлениям",
@@ -68,7 +73,7 @@ func TestValidateRoadmapPlanRequiresRequestedGradeRange(t *testing.T) {
 		Steps: []roadmapStep{{
 			ID: "step-1", Phase: "9 класс", Title: "Фундамент", Description: "Основы",
 			Status: "in_progress", EstimatedTime: "2026-2027", ImpactScore: 70,
-			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа"}},
+			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа", TaskType: "academic", EstimatedMinutes: &estimatedMinutes}},
 		}},
 	}
 
@@ -104,7 +109,7 @@ func TestGeneratePlanFallsBackWhenFirstModelReturnsInvalidGradeRange(t *testing.
 	}
 	profile := roadmapProfile{SchoolGrade: 9}
 
-	plan, err := handler.generatePlan(context.Background(), profile, 2026, 2028)
+	plan, err := handler.generatePlan(context.Background(), profile, "", 2026, 2028)
 	if err != nil {
 		t.Fatalf("generatePlan() returned error: %v", err)
 	}
@@ -113,5 +118,19 @@ func TestGeneratePlanFallsBackWhenFirstModelReturnsInvalidGradeRange(t *testing.
 	}
 	if len(generator.models) != 2 || generator.models[0] != "first-model" || generator.models[1] != "second-model" {
 		t.Fatalf("requested models = %v, want [first-model second-model]", generator.models)
+	}
+}
+
+func TestGeneratePlanIncludesPreferencesInPrompt(t *testing.T) {
+	generator := &recordingGeminiGenerator{}
+	handler := Roadmap{Model: "test-model", generator: generator}
+	profile := roadmapProfile{SchoolGrade: 9}
+	preferences := "Хочу заниматься робототехникой"
+
+	if _, err := handler.generatePlan(context.Background(), profile, preferences, 2026, 2028); err != nil {
+		t.Fatalf("generatePlan() returned error: %v", err)
+	}
+	if len(generator.prompts) != 1 || !strings.Contains(generator.prompts[0], preferences) {
+		t.Fatalf("generated prompt %q does not include preferences %q", generator.prompts, preferences)
 	}
 }

@@ -26,6 +26,7 @@ type Roadmap struct {
 const maxLLMModelAttempts = 4
 
 const roadmapSystemInstruction = "Ты консультант по школьному академическому планированию. Верни только JSON-объект без markdown. Построй реалистичный, персонализированный план от текущего класса ученика до конца 11 класса. Учитывай интересы, сильные стороны, точки роста и этап портфолио. Разбей план на этапы по учебным годам; не придумывай гарантированные результаты и точные даты экзаменов."
+const maxRoadmapPreferencesLength = 2000
 
 type geminiTextGenerator interface {
 	Generate(ctx context.Context, model, prompt string) (string, error)
@@ -61,6 +62,10 @@ type roadmapProfile struct {
 	PortfolioStage string   `json:"portfolio_stage"`
 }
 
+type generateRoadmapRequest struct {
+	Preferences string `json:"preferences"`
+}
+
 type roadmapPlan struct {
 	PlanID            string        `json:"plan_id,omitempty"`
 	Title             string        `json:"title"`
@@ -86,10 +91,29 @@ type roadmapStep struct {
 }
 
 type roadmapTask struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Duration  string `json:"duration"`
-	Completed bool   `json:"completed"`
+	ID               string             `json:"id"`
+	SourceID         string             `json:"source_id,omitempty"`
+	Title            string             `json:"title"`
+	Duration         string             `json:"duration"`
+	TaskType         string             `json:"task_type"`
+	EstimatedMinutes *int               `json:"estimated_minutes,omitempty"`
+	DueDate          *string            `json:"due_date,omitempty"`
+	DueDateSource    *string            `json:"due_date_source,omitempty"`
+	StartedAt        *time.Time         `json:"started_at,omitempty"`
+	Completed        bool               `json:"completed"`
+	CompletedAt      *time.Time         `json:"completed_at,omitempty"`
+	ActualMinutes    *int               `json:"actual_minutes,omitempty"`
+	MicroSteps       []roadmapMicroStep `json:"micro_steps"`
+}
+
+type roadmapMicroStep struct {
+	ID               string     `json:"id,omitempty"`
+	Title            string     `json:"title"`
+	EstimatedMinutes *int       `json:"estimated_minutes,omitempty"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	Completed        bool       `json:"completed"`
+	CompletedAt      *time.Time `json:"completed_at,omitempty"`
+	ActualMinutes    *int       `json:"actual_minutes,omitempty"`
 }
 
 func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +129,16 @@ func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 	userID, err := authenticatedUserID(r, h.JWTSecret)
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var input generateRoadmapRequest
+	if err := decodeAuthRequest(w, r, &input); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	input.Preferences = strings.TrimSpace(input.Preferences)
+	if len([]rune(input.Preferences)) > maxRoadmapPreferencesLength {
+		writeAuthError(w, http.StatusBadRequest, "preferences must be 2000 characters or fewer")
 		return
 	}
 
@@ -124,9 +158,9 @@ func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startYear, endYear := academicYearRange(time.Now(), profile.SchoolGrade)
-	generationCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	generationCtx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
-	plan, err := h.generatePlan(generationCtx, profile, startYear, endYear)
+	plan, err := h.generatePlan(generationCtx, profile, input.Preferences, startYear, endYear)
 	if err != nil {
 		log.Printf("roadmap: generate plan: %v", err)
 		writeAuthError(w, http.StatusBadGateway, "could not generate roadmap")
@@ -141,6 +175,12 @@ func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("roadmap: save generated plan: %v", err)
 		writeAuthError(w, http.StatusInternalServerError, "could not save roadmap")
+		return
+	}
+	plan, err = h.loadActivePlan(r.Context(), userID)
+	if err != nil {
+		log.Printf("roadmap: reload generated plan: %v", err)
+		writeAuthError(w, http.StatusInternalServerError, "could not load saved roadmap")
 		return
 	}
 
@@ -176,7 +216,8 @@ func (h Roadmap) Current(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateRoadmapTaskRequest struct {
-	Completed bool `json:"completed"`
+	Completed     bool `json:"completed"`
+	ActualMinutes *int `json:"actual_minutes,omitempty"`
 }
 
 func (h Roadmap) UpdateTask(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +235,10 @@ func (h Roadmap) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if input.ActualMinutes != nil && *input.ActualMinutes < 0 {
+		writeAuthError(w, http.StatusBadRequest, "actual_minutes cannot be negative")
+		return
+	}
 
 	tx, err := h.DB.BeginTx(r.Context(), nil)
 	if err != nil {
@@ -203,24 +248,18 @@ func (h Roadmap) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	var stepID string
+	var planID, stepID string
+	var wasCompleted bool
+	var actualMinutes sql.NullInt64
 	err = tx.QueryRowContext(r.Context(), `
-		UPDATE roadmap_tasks AS task
-		SET completed = $1,
-		    completed_at = CASE
-		        WHEN $1 THEN COALESCE(task.completed_at, CURRENT_TIMESTAMP)
-		        ELSE NULL
-		    END,
-		    updated_at = CURRENT_TIMESTAMP
-		FROM roadmap_steps AS step
+		SELECT plan.id::text, step.id::text, task.completed, task.actual_minutes
+		FROM roadmap_tasks AS task
+		JOIN roadmap_steps AS step ON step.id = task.roadmap_step_id
 		JOIN roadmap_plans AS plan ON plan.id = step.roadmap_plan_id
 		JOIN student_profiles AS profile ON profile.id = plan.student_profile_id
-		WHERE task.id = $2
-		  AND task.roadmap_step_id = step.id
-		  AND plan.is_active
-		  AND profile.user_id = $3
-		RETURNING step.id::text
-	`, input.Completed, r.PathValue("taskID"), userID).Scan(&stepID)
+		WHERE task.id = $1 AND plan.is_active AND profile.user_id = $2
+		FOR UPDATE OF task
+	`, r.PathValue("taskID"), userID).Scan(&planID, &stepID, &wasCompleted, &actualMinutes)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusNotFound, "roadmap task not found")
 		return
@@ -229,6 +268,42 @@ func (h Roadmap) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		log.Printf("roadmap: update task: %v", err)
 		writeAuthError(w, http.StatusInternalServerError, "could not update task")
 		return
+	}
+	if wasCompleted != input.Completed {
+		err = tx.QueryRowContext(r.Context(), `
+			UPDATE roadmap_tasks
+			SET completed = $1,
+			    completed_at = CASE WHEN $1 THEN CURRENT_TIMESTAMP ELSE NULL END,
+			    actual_minutes = CASE
+			        WHEN $1 THEN COALESCE(
+			            $2,
+			            actual_minutes,
+			            CASE WHEN started_at IS NOT NULL
+			                THEN GREATEST(1, CEIL(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)) / 60)::INTEGER)
+			            END
+			        )
+			        ELSE COALESCE($2, actual_minutes)
+			    END,
+			    started_at = CASE WHEN $1 THEN started_at ELSE NULL END,
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = $3
+			RETURNING actual_minutes
+		`, input.Completed, input.ActualMinutes, r.PathValue("taskID")).Scan(&actualMinutes)
+		if err != nil {
+			log.Printf("roadmap: update task timing: %v", err)
+			writeAuthError(w, http.StatusInternalServerError, "could not update task timing")
+			return
+		}
+		eventType := "uncompleted"
+		if input.Completed {
+			eventType = "completed"
+		}
+		if err := insertRoadmapEvent(r.Context(), tx, r.PathValue("taskID"), planID, eventType,
+			map[string]any{"actual_minutes": nullInt64Value(actualMinutes)}); err != nil {
+			log.Printf("roadmap: log task event: %v", err)
+			writeAuthError(w, http.StatusInternalServerError, "could not record task event")
+			return
+		}
 	}
 
 	var stepStatus string
@@ -256,9 +331,33 @@ func (h Roadmap) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "could not update task")
 		return
 	}
+	if err := tx.QueryRowContext(r.Context(), `
+		SELECT actual_minutes FROM roadmap_tasks WHERE id = $1
+	`, r.PathValue("taskID")).Scan(&actualMinutes); err != nil {
+		log.Printf("roadmap: load actual task minutes: %v", err)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"step_status": stepStatus})
+	response := map[string]any{"step_status": stepStatus}
+	if actualMinutes.Valid {
+		response["actual_minutes"] = actualMinutes.Int64
+	}
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func insertRoadmapEvent(ctx context.Context, tx *sql.Tx, taskID, planID, eventType string, payload any) error {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encode event payload: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO roadmap_task_events (roadmap_task_id, roadmap_plan_id, event_type, payload)
+		VALUES ($1, $2, $3, $4::jsonb)
+	`, taskID, planID, eventType, string(encoded))
+	if err != nil {
+		return fmt.Errorf("insert roadmap event: %w", err)
+	}
+	return nil
 }
 
 func (h Roadmap) savePlan(ctx context.Context, userID string, plan roadmapPlan) (string, error) {
@@ -310,11 +409,37 @@ func (h Roadmap) savePlan(ctx context.Context, userID string, plan roadmapPlan) 
 		}
 
 		for taskIndex, task := range step.Tasks {
+			taskType := task.TaskType
+			if taskType == "" {
+				taskType = "other"
+			}
+			dueDateSource := task.DueDateSource
+			if task.DueDate != nil && dueDateSource == nil {
+				generatedSource := "generated"
+				dueDateSource = &generatedSource
+			}
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO roadmap_tasks (roadmap_step_id, source_id, position, title, duration)
-				VALUES ($1, $2, $3, $4, $5)
-			`, stepID, task.ID, taskIndex+1, task.Title, task.Duration); err != nil {
+				INSERT INTO roadmap_tasks (
+					roadmap_step_id, source_id, position, title, duration, task_type,
+					estimated_minutes, due_date, due_date_source
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`, stepID, task.ID, taskIndex+1, task.Title, task.Duration, taskType,
+				task.EstimatedMinutes, task.DueDate, dueDateSource); err != nil {
 				return "", fmt.Errorf("insert roadmap task %q: %w", task.ID, err)
+			}
+			var taskDBID string
+			if err := tx.QueryRowContext(ctx, `
+				SELECT id::text FROM roadmap_tasks WHERE roadmap_step_id = $1 AND source_id = $2
+			`, stepID, task.ID).Scan(&taskDBID); err != nil {
+				return "", fmt.Errorf("find inserted roadmap task %q: %w", task.ID, err)
+			}
+			for microIndex, microStep := range task.MicroSteps {
+				if _, err := tx.ExecContext(ctx, `
+					INSERT INTO roadmap_micro_steps (roadmap_task_id, position, title, estimated_minutes)
+					VALUES ($1, $2, $3, $4)
+				`, taskDBID, microIndex+1, microStep.Title, microStep.EstimatedMinutes); err != nil {
+					return "", fmt.Errorf("insert micro-step for task %q: %w", task.ID, err)
+				}
 			}
 		}
 
@@ -390,7 +515,8 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 
 	for _, item := range storedSteps {
 		taskRows, err := tx.QueryContext(ctx, `
-			SELECT source_id, title, duration, completed
+			SELECT id::text, source_id, title, duration, task_type, estimated_minutes,
+			       due_date::text, due_date_source, started_at, completed, completed_at, actual_minutes
 			FROM roadmap_tasks
 			WHERE roadmap_step_id = $1
 			ORDER BY position
@@ -398,13 +524,45 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 		if err != nil {
 			return roadmapPlan{}, fmt.Errorf("load roadmap tasks: %w", err)
 		}
+		var tasks []roadmapTask
 		for taskRows.Next() {
 			var task roadmapTask
-			if err := taskRows.Scan(&task.ID, &task.Title, &task.Duration, &task.Completed); err != nil {
+			var estimatedMinutes, actualMinutes sql.NullInt64
+			var dueDate, dueDateSource sql.NullString
+			var taskType sql.NullString
+			var startedAt, completedAt sql.NullTime
+			if err := taskRows.Scan(&task.ID, &task.SourceID, &task.Title, &task.Duration, &taskType,
+				&estimatedMinutes, &dueDate, &dueDateSource, &startedAt, &task.Completed, &completedAt, &actualMinutes); err != nil {
 				taskRows.Close()
 				return roadmapPlan{}, fmt.Errorf("scan roadmap task: %w", err)
 			}
-			item.step.Tasks = append(item.step.Tasks, task)
+			if taskType.Valid {
+				task.TaskType = taskType.String
+			} else {
+				task.TaskType = "other"
+			}
+			if estimatedMinutes.Valid {
+				value := int(estimatedMinutes.Int64)
+				task.EstimatedMinutes = &value
+			}
+			if actualMinutes.Valid {
+				value := int(actualMinutes.Int64)
+				task.ActualMinutes = &value
+			}
+			if dueDate.Valid {
+				task.DueDate = &dueDate.String
+			}
+			if dueDateSource.Valid {
+				task.DueDateSource = &dueDateSource.String
+			}
+			if startedAt.Valid {
+				task.StartedAt = &startedAt.Time
+			}
+			if completedAt.Valid {
+				task.CompletedAt = &completedAt.Time
+			}
+			task.MicroSteps = []roadmapMicroStep{}
+			tasks = append(tasks, task)
 		}
 		if err := taskRows.Err(); err != nil {
 			taskRows.Close()
@@ -412,6 +570,52 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 		}
 		if err := taskRows.Close(); err != nil {
 			return roadmapPlan{}, fmt.Errorf("close roadmap tasks: %w", err)
+		}
+
+		for taskIndex := range tasks {
+			task := &tasks[taskIndex]
+			microRows, err := tx.QueryContext(ctx, `
+				SELECT id::text, title, estimated_minutes, started_at, completed, completed_at, actual_minutes
+				FROM roadmap_micro_steps
+				WHERE roadmap_task_id = $1
+				ORDER BY position
+			`, task.ID)
+			if err != nil {
+				return roadmapPlan{}, fmt.Errorf("load roadmap micro-steps: %w", err)
+			}
+			for microRows.Next() {
+				var microStep roadmapMicroStep
+				var estimated, actual sql.NullInt64
+				var microStarted, microCompleted sql.NullTime
+				if err := microRows.Scan(&microStep.ID, &microStep.Title, &estimated, &microStarted,
+					&microStep.Completed, &microCompleted, &actual); err != nil {
+					microRows.Close()
+					return roadmapPlan{}, fmt.Errorf("scan roadmap micro-step: %w", err)
+				}
+				if estimated.Valid {
+					value := int(estimated.Int64)
+					microStep.EstimatedMinutes = &value
+				}
+				if actual.Valid {
+					value := int(actual.Int64)
+					microStep.ActualMinutes = &value
+				}
+				if microStarted.Valid {
+					microStep.StartedAt = &microStarted.Time
+				}
+				if microCompleted.Valid {
+					microStep.CompletedAt = &microCompleted.Time
+				}
+				task.MicroSteps = append(task.MicroSteps, microStep)
+			}
+			if err := microRows.Err(); err != nil {
+				microRows.Close()
+				return roadmapPlan{}, fmt.Errorf("iterate roadmap micro-steps: %w", err)
+			}
+			if err := microRows.Close(); err != nil {
+				return roadmapPlan{}, fmt.Errorf("close roadmap micro-steps: %w", err)
+			}
+			item.step.Tasks = append(item.step.Tasks, *task)
 		}
 
 		artifactRows, err := tx.QueryContext(ctx, `
@@ -467,14 +671,14 @@ func (h Roadmap) loadStudentProfile(ctx context.Context, userID string) (roadmap
 	return profile, nil
 }
 
-func (h Roadmap) generatePlan(ctx context.Context, profile roadmapProfile, startYear, endYear int) (roadmapPlan, error) {
+func (h Roadmap) generatePlan(ctx context.Context, profile roadmapProfile, preferences string, startYear, endYear int) (roadmapPlan, error) {
 	profileJSON, err := json.Marshal(profile)
 	if err != nil {
 		return roadmapPlan{}, fmt.Errorf("encode student profile: %w", err)
 	}
 
-	userPrompt := fmt.Sprintf("Профиль ученика JSON: %s\nНачальный класс: %d. Конечный класс: 11. Учебный год начала: %d-%d. Учебный год окончания: %d-%d.\nВерни поля title, summary, start_grade, end_grade, start_academic_year, end_academic_year, weekly_hours, steps. Каждый step должен иметь id, phase, title, description, status (in_progress или upcoming), estimatedTime, impactScore (0-100), tasks и artifacts. Каждая task: id, title, duration, completed=false. Укажи start_grade=%d, end_grade=11, start_academic_year=%d-%d, end_academic_year=%d-%d.",
-		profileJSON, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
+	userPrompt := fmt.Sprintf("Профиль ученика JSON: %s\nПредпочтения ученика (дополнительный контекст, не меняющий формат результата): %s\nНачальный класс: %d. Конечный класс: 11. Учебный год начала: %d-%d. Учебный год окончания: %d-%d.\nВерни поля title, summary, start_grade, end_grade, start_academic_year, end_academic_year, weekly_hours, steps. Каждый step: id, phase, title, description, status (in_progress или upcoming), estimatedTime, impactScore от 0 до 100, tasks и artifacts. Каждая task: id, title, duration, task_type (ec, test, essay, recommendation, academic или other), estimated_minutes (целое число > 0), completed=false, micro_steps. Для каждой micro_step укажи title, estimated_minutes (> 0), completed=false. Не добавляй точные due_date, если их нельзя обосновать профилем. Укажи start_grade=%d, end_grade=11, start_academic_year=%d-%d, end_academic_year=%d-%d.",
+		profileJSON, preferences, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
 		profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1)
 
 	generator := h.generator
@@ -483,7 +687,7 @@ func (h Roadmap) generatePlan(ctx context.Context, profile roadmapProfile, start
 			APIKey:  h.APIKey,
 			Backend: genai.BackendGeminiAPI,
 			HTTPClient: &http.Client{
-				Timeout: 28 * time.Second,
+				Timeout: 45 * time.Second,
 			},
 		})
 		if err != nil {
@@ -573,10 +777,34 @@ func validateRoadmapPlan(plan roadmapPlan, schoolGrade, startYear, endYear int) 
 			return errors.New("plan contains an invalid step")
 		}
 		for _, task := range step.Tasks {
-			if task.ID == "" || task.Title == "" || task.Duration == "" {
+			if task.ID == "" || len(task.ID) > 100 || task.Title == "" || task.Duration == "" ||
+				!validRoadmapTaskType(task.TaskType) || task.EstimatedMinutes == nil || *task.EstimatedMinutes < 1 ||
+				(task.DueDate != nil && !validDate(*task.DueDate)) {
 				return errors.New("plan contains an invalid task")
+			}
+			if len(task.MicroSteps) > 20 {
+				return errors.New("plan contains too many micro-steps")
+			}
+			for _, microStep := range task.MicroSteps {
+				if strings.TrimSpace(microStep.Title) == "" || microStep.EstimatedMinutes == nil || *microStep.EstimatedMinutes < 1 {
+					return errors.New("plan contains an invalid micro-step")
+				}
 			}
 		}
 	}
 	return nil
+}
+
+func validRoadmapTaskType(taskType string) bool {
+	switch taskType {
+	case "ec", "test", "essay", "recommendation", "academic", "other":
+		return true
+	default:
+		return false
+	}
+}
+
+func validDate(value string) bool {
+	_, err := time.Parse("2006-01-02", value)
+	return err == nil
 }

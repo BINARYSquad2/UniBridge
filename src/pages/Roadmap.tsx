@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle2, 
   Circle, 
@@ -10,14 +11,30 @@ import {
   Zap,
   ArrowRight,
   Loader2,
-  Wand2
+  Wand2,
+  Plus,
+  Timer
 } from 'lucide-react';
+
+interface MicroStep {
+  id: string;
+  title: string;
+  estimated_minutes?: number;
+  started_at?: string;
+  completed: boolean;
+  actual_minutes?: number;
+}
 
 interface Task {
   id: string;
   title: string;
   duration: string;
+  task_type: string;
+  estimated_minutes?: number;
+  started_at?: string;
   completed: boolean;
+  actual_minutes?: number;
+  micro_steps: MicroStep[];
 }
 
 interface RoadmapStep {
@@ -58,19 +75,27 @@ const INITIAL_STEPS: RoadmapStep[] = [
     impactScore: 50,
     artifacts: ['Draft Plan JSON'],
     tasks: [
-      { id: 't0', title: 'Нажать кнопку генерации плана выше', duration: '1 мин', completed: false }
+      { id: 't0', title: 'Нажать кнопку генерации плана выше', duration: '1 мин', task_type: 'other', completed: false, micro_steps: [] }
     ]
   }
 ];
 
 export const Roadmap: React.FC = () => {
+  const navigate = useNavigate();
   const [steps, setSteps] = useState<RoadmapStep[]>(INITIAL_STEPS);
   const [activeStepId, setActiveStepId] = useState<string>('step-1');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isAddingToKanban, setIsAddingToKanban] = useState(false);
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedRoadmap | null>(null);
+  const [preferences, setPreferences] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [updatingTaskID, setUpdatingTaskID] = useState<string | null>(null);
+  const [startingTaskID, setStartingTaskID] = useState<string | null>(null);
+  const [updatingMicroStepID, setUpdatingMicroStepID] = useState<string | null>(null);
+  const [creatingMicroStepFor, setCreatingMicroStepFor] = useState<string | null>(null);
+  const [microStepTitle, setMicroStepTitle] = useState('');
+  const [microStepMinutes, setMicroStepMinutes] = useState('15');
 
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
@@ -131,21 +156,141 @@ export const Roadmap: React.FC = () => {
           },
           body: JSON.stringify({ completed }),
         });
-        const result = await response.json().catch(() => null) as { error?: string } | null;
+        const result = await response.json().catch(() => null) as { error?: string; actual_minutes?: number } | null;
         if (!response.ok) {
           throw new Error(result && 'error' in result ? result.error : 'Не удалось сохранить задачу');
         }
+        setSteps((previous) => previous.map((item) => item.id === stepId
+          ? {
+              ...item,
+              tasks: item.tasks.map((currentTask) => currentTask.id === taskId
+                ? { ...currentTask, completed, started_at: completed ? currentTask.started_at : undefined, actual_minutes: result?.actual_minutes ?? currentTask.actual_minutes }
+                : currentTask),
+              status,
+            }
+          : item));
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить задачу');
         return;
       } finally {
         setUpdatingTaskID(null);
       }
+      return;
     }
 
     setSteps((previous) => previous.map((item) => item.id === stepId
       ? { ...item, tasks: updatedTasks, status }
       : item));
+  };
+
+  const startTask = async (stepId: string, taskId: string) => {
+    if (startingTaskID) return;
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
+    setStartingTaskID(taskId);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const result = await response.json().catch(() => null) as { started_at?: string; error?: string } | null;
+      if (!response.ok || !result?.started_at) throw new Error(result?.error ?? 'Не удалось запустить таймер');
+      setSteps((previous) => previous.map((step) => step.id === stepId
+        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId ? { ...task, started_at: result.started_at } : task) }
+        : step));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось запустить таймер');
+    } finally {
+      setStartingTaskID(null);
+    }
+  };
+
+  const startMicroStep = async (stepId: string, taskId: string, microStepId: string) => {
+    if (updatingMicroStepID) return;
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
+    setUpdatingMicroStepID(microStepId);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/micro-steps/${encodeURIComponent(microStepId)}/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const result = await response.json().catch(() => null) as { started_at?: string; error?: string } | null;
+      if (!response.ok || !result?.started_at) throw new Error(result?.error ?? 'Не удалось запустить микрошаг');
+      setSteps((previous) => previous.map((step) => step.id === stepId
+        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId
+            ? { ...task, micro_steps: task.micro_steps.map((micro) => micro.id === microStepId ? { ...micro, started_at: result.started_at } : micro) }
+            : task) }
+        : step));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось запустить микрошаг');
+    } finally {
+      setUpdatingMicroStepID(null);
+    }
+  };
+
+  const toggleMicroStep = async (stepId: string, taskId: string, microStep: MicroStep) => {
+    if (updatingMicroStepID) return;
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
+    const completed = !microStep.completed;
+    setUpdatingMicroStepID(microStep.id);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/micro-steps/${encodeURIComponent(microStep.id)}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed }),
+      });
+      const result = await response.json().catch(() => null) as { actual_minutes?: number; error?: string } | null;
+      if (!response.ok) throw new Error(result?.error ?? 'Не удалось сохранить микрошаг');
+      setSteps((previous) => previous.map((step) => step.id === stepId
+        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId
+            ? { ...task, micro_steps: task.micro_steps.map((micro) => micro.id === microStep.id
+                ? { ...micro, completed, started_at: completed ? micro.started_at : undefined, actual_minutes: result?.actual_minutes ?? micro.actual_minutes }
+                : micro) }
+            : task) }
+        : step));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить микрошаг');
+    } finally {
+      setUpdatingMicroStepID(null);
+    }
+  };
+
+  const addMicroStep = async (event: React.FormEvent, stepId: string, taskId: string) => {
+    event.preventDefault();
+    const title = microStepTitle.trim();
+    const estimatedMinutes = Number(microStepMinutes);
+    if (!title || !Number.isInteger(estimatedMinutes) || estimatedMinutes < 1) {
+      setErrorMessage('Укажите название и время микрошагa в минутах.');
+      return;
+    }
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
+    setUpdatingMicroStepID(`new:${taskId}`);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}/micro-steps`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, estimated_minutes: estimatedMinutes }),
+      });
+      const result = await response.json().catch(() => null) as MicroStep & { error?: string } | null;
+      if (!response.ok || !result?.id) throw new Error(result?.error ?? 'Не удалось добавить микрошаг');
+      setSteps((previous) => previous.map((step) => step.id === stepId
+        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId ? { ...task, micro_steps: [...task.micro_steps, result] } : task) }
+        : step));
+      setMicroStepTitle('');
+      setMicroStepMinutes('15');
+      setCreatingMicroStepFor(null);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось добавить микрошаг');
+    } finally {
+      setUpdatingMicroStepID(null);
+    }
   };
 
   const handleGenerateRoadmap = async () => {
@@ -161,7 +306,11 @@ export const Roadmap: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/generate`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ preferences }),
       });
       const result = await response.json().catch(() => null) as (GeneratedRoadmap & { error?: string }) | null;
 
@@ -180,6 +329,30 @@ export const Roadmap: React.FC = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const addActiveStepToKanban = async () => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      setErrorMessage('Войдите в аккаунт, чтобы добавить задачи в Kanban.');
+      return;
+    }
+
+    setIsAddingToKanban(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/kanban/roadmap-steps/${encodeURIComponent(activeStep.id)}/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const result = await response.json().catch(() => null) as { added?: number; error?: string } | null;
+      if (!response.ok) throw new Error(result?.error ?? 'Не удалось добавить задачи в Kanban');
+      navigate('/kanban', { state: { importedCount: result?.added ?? 0 } });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось добавить задачи в Kanban');
+    } finally {
+      setIsAddingToKanban(false);
     }
   };
 
@@ -227,6 +400,17 @@ export const Roadmap: React.FC = () => {
 
           {/* Action Button & Progress Card */}
           <div className="flex flex-col sm:flex-row md:flex-col gap-4 min-w-[280px]">
+            <label className="flex flex-col gap-2 text-sm font-semibold text-text-primary">
+              Предпочтения для плана
+              <textarea
+                value={preferences}
+                onChange={(event) => setPreferences(event.target.value)}
+                maxLength={2000}
+                rows={3}
+                placeholder="Например: интересуюсь робототехникой, предпочитаю заниматься по выходным"
+                className="w-full resize-y rounded-xl border border-border bg-bg-surface px-3 py-2.5 text-sm font-normal leading-relaxed text-text-primary placeholder:text-text-secondary/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+            </label>
             <button
               onClick={handleGenerateRoadmap}
               disabled={isGenerating}
@@ -390,29 +574,118 @@ export const Roadmap: React.FC = () => {
 
               <div className="space-y-2">
                 {activeStep.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => toggleTask(activeStep.id, task.id)}
-                    aria-disabled={updatingTaskID !== null}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      task.completed 
-                        ? 'bg-bg-primary/60 border-border text-text-secondary' 
-                        : 'bg-bg-primary border-border text-text-primary hover:border-brand/50'
-                    } ${updatingTaskID === task.id ? 'opacity-60' : ''}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {task.completed ? (
-                        <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
-                      ) : (
-                        <Circle className="w-4 h-4 text-text-secondary shrink-0" />
-                      )}
-                      <span className={`text-sm ${task.completed ? 'line-through font-normal' : 'font-bold'}`}>
-                        {task.title}
-                      </span>
+                  <div key={task.id} className="space-y-2">
+                    <div
+                      onClick={() => toggleTask(activeStep.id, task.id)}
+                      aria-disabled={updatingTaskID !== null}
+                      className={`flex items-center justify-between gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        task.completed
+                          ? 'bg-bg-primary/60 border-border text-text-secondary'
+                          : 'bg-bg-primary border-border text-text-primary hover:border-brand/50'
+                      } ${updatingTaskID === task.id ? 'opacity-60' : ''}`}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        {task.completed ? (
+                          <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-text-secondary shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <span className={`text-sm ${task.completed ? 'line-through font-normal' : 'font-bold'}`}>
+                            {task.title}
+                          </span>
+                          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-text-secondary">
+                            <span>{task.task_type || 'other'}</span>
+                            <span>Оценка: {task.estimated_minutes ?? '—'} мин</span>
+                            {task.actual_minutes !== undefined && <span>Факт: {task.actual_minutes} мин</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-xs font-semibold text-text-secondary bg-bg-surface px-2 py-1 rounded-md border border-border">
+                          {task.duration}
+                        </span>
+                        {!task.completed && (
+                          <button
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); void startTask(activeStep.id, task.id); }}
+                            disabled={startingTaskID === task.id}
+                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors ${task.started_at ? 'border-brand/40 bg-brand-light text-brand' : 'border-border text-text-secondary hover:border-brand hover:text-brand'}`}
+                          >
+                            <Timer className="h-3.5 w-3.5" />
+                            {task.started_at ? 'Таймер идёт' : 'Старт'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-xs font-semibold text-text-secondary shrink-0 ml-2 bg-bg-surface px-2 py-1 rounded-md border border-border">
-                      {task.duration}
-                    </span>
+
+                    <div className="ml-6 space-y-2 border-l border-border pl-3">
+                      {(task.micro_steps ?? []).map((microStep) => (
+                        <div key={microStep.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bg-primary px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => void toggleMicroStep(activeStep.id, task.id, microStep)}
+                            disabled={updatingMicroStepID === microStep.id}
+                            className="inline-flex min-w-0 items-center gap-2 text-left text-xs font-semibold text-text-primary disabled:opacity-60"
+                          >
+                            {microStep.completed
+                              ? <CheckCircle2 className="h-4 w-4 shrink-0 text-brand" />
+                              : <Circle className="h-4 w-4 shrink-0 text-text-secondary" />}
+                            <span className={microStep.completed ? 'line-through text-text-secondary' : ''}>{microStep.title}</span>
+                            <span className="text-text-secondary">{microStep.actual_minutes ?? microStep.estimated_minutes ?? '—'} мин</span>
+                          </button>
+                          {!microStep.completed && (
+                            <button
+                              type="button"
+                              onClick={() => void startMicroStep(activeStep.id, task.id, microStep.id)}
+                              disabled={updatingMicroStepID === microStep.id}
+                              className="text-[11px] font-bold text-brand hover:underline disabled:opacity-60"
+                            >
+                              {microStep.started_at ? 'Таймер идёт' : 'Старт'}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      {creatingMicroStepFor === task.id ? (
+                        <form onSubmit={(event) => void addMicroStep(event, activeStep.id, task.id)} className="flex flex-wrap items-center gap-2">
+                          <input
+                            aria-label="Название микрошагa"
+                            value={microStepTitle}
+                            onChange={(event) => setMicroStepTitle(event.target.value)}
+                            maxLength={500}
+                            placeholder="Новый микрошаг"
+                            className="min-w-0 flex-1 rounded-lg border border-border bg-bg-surface px-3 py-2 text-xs"
+                            required
+                          />
+                          <input
+                            aria-label="Оценка времени в минутах"
+                            type="number"
+                            min={1}
+                            value={microStepMinutes}
+                            onChange={(event) => setMicroStepMinutes(event.target.value)}
+                            className="w-20 rounded-lg border border-border bg-bg-surface px-2 py-2 text-xs"
+                            required
+                          />
+                          <button type="submit" disabled={updatingMicroStepID === `new:${task.id}`} className="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-text-primary disabled:opacity-60">
+                            Добавить
+                          </button>
+                          <button type="button" onClick={() => setCreatingMicroStepFor(null)} className="px-2 py-2 text-xs text-text-secondary hover:text-text-primary">
+                            Отмена
+                          </button>
+                        </form>
+                      ) : (
+                        !task.completed && (
+                          <button
+                            type="button"
+                            onClick={() => setCreatingMicroStepFor(task.id)}
+                            className="inline-flex items-center gap-1 px-1 py-1 text-xs font-bold text-brand hover:underline"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Добавить микрошаг
+                          </button>
+                        )
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -439,8 +712,17 @@ export const Roadmap: React.FC = () => {
 
             {/* Action CTA Button */}
             <div className="pt-2">
-              <button className="landing__primary-button w-full">
-                <span>Перейти к выполнению задач этапа</span>
+              <button
+                type="button"
+                onClick={() => void addActiveStepToKanban()}
+                disabled={isAddingToKanban || !generatedPlan}
+                className="landing__primary-button w-full disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span>
+                  {isAddingToKanban
+                    ? 'Добавляем задачи...'
+                    : generatedPlan ? 'Добавить задачи этапа в Kanban' : 'Сначала сгенерируйте Roadmap'}
+                </span>
                 <ArrowRight />
               </button>
             </div>
