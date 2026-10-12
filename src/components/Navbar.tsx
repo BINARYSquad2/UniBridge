@@ -46,7 +46,7 @@ export const Navbar: React.FC = () => {
       <div className={`mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-[height] duration-300 ${isScrolled ? 'h-16' : 'h-20'}`}>
         
         {/* Логотип */}
-        <Link to="/" className="flex items-center gap-3 group shrink-0">
+        <Link to="#main" className="flex items-center gap-3 group shrink-0">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-text-primary font-black text-xl shadow-sm transition-transform duration-300 group-hover:scale-105">
             U
           </div>

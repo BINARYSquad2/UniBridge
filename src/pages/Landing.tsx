@@ -14,7 +14,7 @@ import {
 
 export default function Landing() {
   return (
-    <div className="landing-page">
+    <div id="main" className="landing-page">
       {/* Background Decorator Gradients */}
       <div className="landing__hero-decoration" />
       <div className="landing__hero-decoration-2" />
@@ -23,7 +23,7 @@ export default function Landing() {
       <div className="landing__container">
 
         {/* Hero Section */}
-        <section className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
+        <section id="main" className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
           <div className="landing__hero-content">
 
             {/* Top Badge */}
