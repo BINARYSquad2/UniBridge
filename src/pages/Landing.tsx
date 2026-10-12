@@ -21,11 +21,11 @@ export default function Landing() {
 
       {/* Main Container */}
       <div className="landing__container">
-        
+
         {/* Hero Section */}
         <section className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
           <div className="landing__hero-content">
-            
+
             {/* Top Badge */}
             <div>
               <div className="landing__badge">
@@ -175,7 +175,8 @@ export default function Landing() {
           </div>
 
           <div className="landing__mentor-grid">
-            
+
+            {/* Mentor Card Sample */}
             {[
               { name: 'Алихан Смаилов', role: 'Студент', uni: 'NUS (Сингапур)', rating: '4.9', tags: ['Computer Science', 'Full Scholarship', 'SAT'] },
               { name: 'Диана Аспанова', role: 'Выпускник', uni: 'KAIST (Южная Корея)', rating: '5.0', tags: ['AI & Robotics', 'GKS Grant', 'IELTS'] },
