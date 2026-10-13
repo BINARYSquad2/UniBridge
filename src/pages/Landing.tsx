@@ -11,7 +11,7 @@ import {
   Target,
   Brain
 } from 'lucide-react';
-
+import { Link } from 'react-router-dom';
 export default function Landing() {
   return (
     <div id="main" className="landing-page">
@@ -49,14 +49,14 @@ export default function Landing() {
 
             {/* Call to Actions (Пункт 10) */}
             <div className="landing__hero-actions">
-              <button className="landing__primary-button">
+              <Link to="/login" className="landing__primary-button">
                 <span>Подобрать ментора</span>
                 <ArrowRight />
-              </button>
+              </Link>
 
-              <button className="landing__secondary-button">
+              <Link to="/register" className="landing__secondary-button inline-flex items-center justify-center">
                 Стать наставником
-              </button>
+              </Link>
             </div>
 
             {/* Social Proof Badges (Пункт 2, 3) */}
@@ -227,9 +227,9 @@ export default function Landing() {
             <p className="landing__cta-description">
               Зарегистрируйся прямо сейчас и начни строить свое будущее прямо сейчас.
             </p>
-            <button className="landing__cta-button">
+            <Link to="/register" className="landing__cta-button inline-flex items-center justify-center">
               Начать бесплатно
-            </button>
+            </Link>
           </div>
         </div>
       </section>

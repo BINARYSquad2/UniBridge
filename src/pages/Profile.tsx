@@ -426,9 +426,9 @@ useEffect(() => {
       <footer className="landing__footer mt-16">
         <div className="landing__footer-container">
           <div className="landing__footer-brand">
-            <div className="landing__footer-logo">Edu</div>
+            <div className="landing__footer-logo">U</div>
             <div>
-              <div className="landing__footer-name">EduPlatform</div>
+              <div className="landing__footer-name">UniBridge</div>
               <div className="landing__footer-copy">© 2026 Все права защищены.</div>
             </div>
           </div>
