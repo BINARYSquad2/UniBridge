@@ -1,14 +1,16 @@
+import { useSession } from '../lib/session';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const NAV_LINKS = [
   { label: 'Возможности', to: '/#features' },
-  { label: 'Менторы', to: '/mentorslist' },
+  { label: 'Менторы', to: '/#mentors' },
   { label: 'О платформе', to: '/#stats' },
   { label: 'Кабинет', to: '/profile' },
 ];
 
 export const Navbar: React.FC = () => {
+  const { user, logout } = useSession();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -62,6 +64,7 @@ export const Navbar: React.FC = () => {
 
           {/* Кнопки действий (Десктоп) */}
           <div className="hidden md:flex items-center gap-3">
+            {user ? <button onClick={logout} className="px-4 py-2 text-sm font-bold">Выйти</button> : <>
             <Link
               to="/login"
               className="px-4 py-2 text-sm font-bold text-text-primary hover:text-brand transition-colors duration-200"
@@ -73,7 +76,7 @@ export const Navbar: React.FC = () => {
               className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
             >
               Начать бесплатно
-            </Link>
+            </Link></>}
           </div>
 
           {/* Гамбургер для мобильных устройств */}
@@ -109,6 +112,7 @@ export const Navbar: React.FC = () => {
                 </Link>
               ))}
               <hr className="border-border my-2" />
+              {user ? <button onClick={() => { logout(); setIsMobileMenuOpen(false); }}>Выйти</button> : <>
               <Link
                 to="/login"
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -122,7 +126,7 @@ export const Navbar: React.FC = () => {
                 className="text-center py-2.5 text-base font-bold text-text-primary bg-brand rounded-xl hover:bg-brand-hover transition-colors shadow-xs"
               >
                 Начать бесплатно
-              </Link>
+              </Link></>}
             </nav>
           </div>
         )}

@@ -22,6 +22,8 @@ func New(cfg config.Config, db *sql.DB) *http.Server {
 	JWTSecret: []byte(cfg.AuthSecret),
 }
 mux.HandleFunc("/api/v1/mentors", mentors.List)
+ mux.HandleFunc("/api/v1/auth/me", mentors.Me)
+ mux.HandleFunc("/api/v1/mentorship/requests", mentors.Requests)
 	roadmap := handlers.Roadmap{
 		DB:        db,
 		JWTSecret: []byte(cfg.AuthSecret),

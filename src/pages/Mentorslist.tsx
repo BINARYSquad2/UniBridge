@@ -1,105 +1,60 @@
+import { CabinetNav } from '../components/CabinetNav'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-
-type Mentor = {
-  id: string
-  full_name: string
-  bio: string
-}
-
+import { api } from '../lib/session'
+import { statuses } from './Requests'
+import type { Request } from './Requests'
+type Mentor = { id: string; full_name: string; bio: string; subjects: string[]; matches: number }
 export default function Mentorslist() {
   const [mentors, setMentors] = useState<Mentor[]>([])
+  const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
+  const [selected, setSelected] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [success, setSuccess] = useState('')
+  const [onlyMatches, setOnlyMatches] = useState(false)
   useEffect(() => {
     const controller = new AbortController()
-
-    async function loadMentors() {
-      try {
-        const response = await fetch('/api/v1/mentors', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
-          signal: controller.signal,
-        })
-
-        if (response.status === 401) {
-          throw new Error('Сессия истекла. Войдите в аккаунт заново.')
-        }
-
-        if (!response.ok) {
-          throw new Error('Не удалось загрузить менторов.')
-        }
-
-        const data: Mentor[] = await response.json()
-        setMentors(data)
-      } catch (err) {
-        if (controller.signal.aborted) return
-
-        setError(
-          err instanceof Error ? err.message : 'Ошибка соединения с сервером.',
-        )
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
-      }
-    }
-
-    void loadMentors()
-
+    Promise.all([api<Mentor[]>('/mentors', { signal: controller.signal }), api<Request[]>('/mentorship/requests', { signal: controller.signal })])
+      .then(([m, r]) => { setMentors(m); setRequests(r) })
+      .catch(e => { if (!controller.signal.aborted) setError(e.message) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [])
-
-  return (
-    <div className="landing-page min-h-screen">
-      <main className="landing__container pt-28 pb-12">
-        <h1 className="text-3xl font-black text-text-primary">
-          Менторство
-        </h1>
-
-        <p className="mt-3 mb-8 text-text-secondary">
-          Найди наставника, который поможет с обучением и поступлением.
-        </p>
-
-        {loading && <p role="status">Загружаем менторов…</p>}
-
-        {error && (
-          <div role="alert" className="rounded-xl border border-border p-5">
-            <p>{error}</p>
-            <Link to="/login" className="text-brand underline">
-              Войти в аккаунт
-            </Link>
-          </div>
-        )}
-
-        {!loading && !error && mentors.length === 0 && (
-          <div className="landing__feature-card">
-            <h2 className="text-xl font-bold">Менторов пока нет</h2>
-            <p className="mt-2 text-text-secondary">
-              Когда зарегистрируется пользователь с ролью ментора,
-              он появится здесь.
-            </p>
-          </div>
-        )}
-
-        {!loading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {mentors.map((mentor) => (
-              <article key={mentor.id} className="landing__feature-card">
-                <span className="landing__section-label">Ментор</span>
-
-                <h2 className="mt-3 text-xl font-bold text-text-primary">
-                  {mentor.full_name}
-                </h2>
-
-                <p className="mt-3 whitespace-pre-wrap text-text-secondary">
-                  {mentor.bio || 'Ментор пока не добавил описание.'}
-                </p>
-              </article>
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
-  )
+  async function send(event: React.FormEvent) {
+    event.preventDefault()
+    if (!message.trim() || busy) return
+    setBusy(true); setError(''); setSuccess('')
+    try {
+      await api('/mentorship/requests', { method: 'POST', body: JSON.stringify({ mentor_id: selected, message: message.trim() }) })
+      setSelected(''); setMessage(''); setSuccess('Заявка отправлена! Её статус доступен в разделе «Мои заявки».')
+      setRequests(await api<Request[]>('/mentorship/requests'))
+    } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка соединения') } finally { setBusy(false) }
+  }
+  const shown = mentors.filter(m => !onlyMatches || m.matches > 0)
+  return <div className="landing-page min-h-screen"><div className="cabinet-layout"><CabinetNav /><main className="cabinet-content space-y-6">
+    <h1 className="text-3xl font-black">Подбор менторов</h1>
+    <p className="text-text-secondary">Сначала показаны менторы с наибольшим числом совпадений с вашими интересами.</p>
+    <div className="flex flex-wrap gap-5"><label><input type="checkbox" checked={onlyMatches} onChange={e => setOnlyMatches(e.target.checked)} /> Только с совпадениями</label><Link to="/requests" className="text-brand underline">Мои заявки →</Link></div>
+    {error && <div role="alert">{error} <button onClick={() => window.location.reload()}>Обновить страницу</button></div>}
+    {success && <p role="status">{success}</p>}
+    {loading ? <p role="status">Загрузка менторов…</p> : <>
+      {!shown.length && !error && <div className="landing__feature-card">{mentors.length ? 'Совпадений пока нет. Снимите фильтр, чтобы посмотреть всех менторов.' : 'Менторов пока нет. Они появятся после регистрации.'}</div>}
+      <div className="catalog-grid">{shown.map(mentor => {
+        const active = requests.find(r => r.mentor_id === mentor.id && ['pending', 'accepted'].includes(r.status))
+        return <article key={mentor.id} className="landing__mentor-card catalog-card">
+          <span className="landing__mentor-role self-start">{mentor.matches ? `Совпадений: ${mentor.matches}` : 'Другие направления'}</span>
+          <h2 className="landing__mentor-name mt-4">{mentor.full_name}</h2>
+          <p className="mt-3 whitespace-pre-wrap break-words text-text-secondary">{mentor.bio || 'Описание пока не добавлено.'}</p>
+          <div className="flex flex-wrap gap-2 my-4">{mentor.subjects.map(s => <span key={s} className="landing__mentor-tag">{s}</span>)}</div>
+          {active ? <Link to="/requests" className="text-brand">Заявка: {statuses[active.status]} →</Link> : selected === mentor.id ? <form onSubmit={send} className="space-y-3">
+            <label className="block font-bold">Кратко о себе и цели обучения<textarea autoFocus required maxLength={2000} rows={4} className="block w-full mt-2 rounded-xl border border-border bg-bg-primary p-3 font-normal" placeholder="Что хотите изучить и какая помощь нужна?" value={message} onChange={e => setMessage(e.target.value)} /></label>
+            <div className="flex flex-wrap gap-3"><button className="landing__mentor-button" disabled={busy || !message.trim()}>{busy ? 'Отправляем…' : 'Отправить заявку'}</button><button type="button" disabled={busy} onClick={() => setSelected('')}>Отмена</button></div>
+          </form> : <button className="landing__mentor-button" disabled={busy} onClick={() => { setSelected(mentor.id); setMessage(''); setSuccess('') }}>Подать заявку</button>}
+        </article>
+      })}</div>
+    </>}
+  </main></div></div>
 }
