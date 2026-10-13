@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, X, GraduationCap} from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const NAV_LINKS = [
@@ -48,7 +48,7 @@ export const Navbar: React.FC = () => {
         {/* Логотип */}
         <Link to="#main" className="flex items-center gap-3 group shrink-0">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-text-primary font-black text-xl shadow-sm transition-transform duration-300 group-hover:scale-105">
-            U
+            <GraduationCap />
           </div>
           <span className="text-xl font-black tracking-tight text-text-primary">
             Uni<span className="text-brand">Bridge</span>
