@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSession } from '../lib/session';
 import { useNavigate } from 'react-router-dom';
 
 type AuthMode = 'login' | 'register';
@@ -83,6 +84,7 @@ const getApiErrorMessage = (body: string, fallback: string) => {
 
 export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) => {
   const navigate = useNavigate();
+  const { signIn } = useSession();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [step, setStep] = useState<number>(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -91,6 +93,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
   const [successMessage, setSuccessMessage] = useState('');
 
   const [formData, setFormData] = useState({
+    bio: '',
     name: '',
     surname: '',
     email: '',
@@ -103,7 +106,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
     portfolioStage: PORTFOLIO_STAGES[0],
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -134,6 +137,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          ...(formData.role === 'mentor' && { bio: formData.bio, subjects: formData.interests }),
           ...(formData.role === 'student' && {
             school_grade: Number(formData.schoolGrade),
             interests: formData.interests,
@@ -180,18 +184,16 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           throw new Error('Сервер вернул некорректный ответ');
         }
 
-        // Успешный вход или регистрация
-        localStorage.setItem('access_token', result.access_token);
-        setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
-        
-        onClose?.();
-        navigate('/profile');
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Неверный email или пароль');
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
+      signIn(result.access_token, result.user);
+      setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
+      onClose?.();
+      navigate('/profile');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +204,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
     }
 
     if (formData.role === 'mentor') {
+      if (!formData.interests.length) { setErrorMessage('Выберите хотя бы одно направление'); return; }
       await submitAuth('register');
       return;
     }
@@ -254,6 +257,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             <div className="h-1.5 w-full bg-bg-primary rounded-full overflow-hidden">
               <div
                 className="h-full bg-brand transition-all duration-300"
+                style={{ width: `${(step / 6) * 100}%` }}
                 style={{ width: `${(step / 6) * 100}%` }}
               />
             </div>
@@ -396,6 +400,18 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </>
           )}
 
+          {mode === 'register' && formData.role === 'mentor' && (
+            <div className="space-y-4">
+              <label className="block font-bold">О себе и опыте
+                <textarea name="bio" value={formData.bio} onChange={handleChange} required maxLength={4000} rows={3} placeholder="В чём вы можете помочь ученикам?" className="mt-2 w-full rounded-xl border border-border bg-bg-primary p-3" />
+              </label>
+              <fieldset><legend className="font-bold mb-2">Направления менторства</legend>
+                <div className="flex flex-wrap gap-2">{SUBJECT_DIRECTIONS.map(item => <label key={item} className="rounded-xl border border-border p-2 text-sm"><input type="checkbox" checked={formData.interests.includes(item)} onChange={() => toggleTag('interests', item)} /> {item}</label>)}</div>
+                <p className="mt-2 text-sm text-text-secondary">Выберите хотя бы одно направление.</p>
+              </fieldset>
+            </div>
+          )}
+          {/* ЭКРАН 2: Класс */}
           {step === 2 && mode === 'register' && formData.role === 'student' && (
             <div>
               <label htmlFor="schoolGrade" className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">

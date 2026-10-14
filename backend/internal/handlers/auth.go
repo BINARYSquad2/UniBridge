@@ -37,6 +37,8 @@ type authResponse struct {
 }
 
 type registerRequest struct {
+	Bio            string   `json:"bio"`
+	Subjects       []string `json:"subjects"`
 	Name           string   `json:"name"`
 	Surname        string   `json:"surname"`
 	FullName       string   `json:"full_name"`
@@ -201,6 +203,10 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Role == "mentor" && (len(strings.TrimSpace(input.Bio)) == 0 || len(input.Bio) > 4000 || len(input.Subjects) == 0 || len(input.Subjects) > 14) {
+		writeAuthError(w, http.StatusBadRequest, "Укажите описание и направления ментора")
+		return
+	}
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "could not create account")
@@ -246,6 +252,13 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		user.SchoolGrade = input.SchoolGrade
+	}
+	if input.Role == "mentor" {
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO mentor_profiles (user_id, bio, subjects) VALUES ($1,$2,$3)`, user.ID, strings.TrimSpace(input.Bio), pq.Array(input.Subjects))
+		if err != nil {
+			writeAuthError(w, 500, "Не удалось создать профиль ментора")
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		log.Printf("register: commit transaction: %v", err)
@@ -293,7 +306,7 @@ func (a Auth) Login(w http.ResponseWriter, r *http.Request) {
 	`, input.Email).Scan(
 		&user.ID, &user.Email, &user.Name, &user.Surname, &user.FullName, &user.Role, &passwordHash, &schoolGrade,
 	)
-	
+
 	// Если пользователя нет в базе — отдаем 401 Unauthorized с сообщением о неверных данных
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusUnauthorized, "invalid email or password")

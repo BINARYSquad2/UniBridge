@@ -1,4 +1,4 @@
-
+import { useSession } from '../lib/session';
 import { useEffect, useState } from 'react';
 import { LogOut, Menu, X, GraduationCap} from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ const NAV_LINKS = [
 ];
 
 export const Navbar: React.FC = () => {
+  const { user, logout } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -116,8 +117,13 @@ export const Navbar: React.FC = () => {
             >
               Авторизация
             </Link>
-          )}
-        </div>
+            <Link
+              to="/register"
+              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
+            >
+              Начать бесплатно
+            </Link>
+          </div>
 
         {/* Мобильная кнопка меню */}
         <button

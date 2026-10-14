@@ -6,7 +6,10 @@ import Landing from './pages/Landing'
 import { Navbar } from './components/Navbar'
 import { Auth } from './pages/Auth'
 import Profile from './pages/Profile'
+import Requests from './pages/Requests'
+import { SessionProvider, useSession } from './lib/session'
 import Roadmap from './pages/Roadmap'
+import Mentorslist from './pages/Mentorslist.tsx' 
 import Analytics from './pages/Analytics'
 import KanbanBoard from './pages/Kanban'
 
@@ -49,29 +52,35 @@ function hasActiveJWT(): boolean {
   }
 }
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  if (hasActiveJWT()) return children
-  localStorage.removeItem('access_token')
-  return <Navigate to="/login" replace />
+function ProtectedRoute({ children, role }: { children: ReactNode; role?: 'student' | 'mentor' }) {
+  const { user, loading, error } = useSession()
+  if (loading) return <p className="pt-28 text-center" role="status">Загрузка аккаунта…</p>
+  if (!user) return error && localStorage.getItem('access_token')
+    ? <div className="pt-28 text-center" role="alert">{error}<button onClick={() => window.location.reload()}>Повторить</button></div>
+    : <Navigate to="/login" replace />
+  if (role && user.role !== role) return <Navigate to={user.role === 'mentor' ? '/requests' : '/mentorslist'} replace />
+  return children
 }
 
 function App() {
   return (
-    <BrowserRouter>
+    <SessionProvider><BrowserRouter>
       <ScrollToLocation />
       <Routes>
         <Route path="/" element={<PublicLayout />}>
           <Route index element={<Landing />} />
           <Route path="login" element={<Auth key="login" initialMode="login" />} />
           <Route path="register" element={<Auth key="register" initialMode="register" />} />
+          <Route path="requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
+          <Route path="roadmap" element={<ProtectedRoute role="student"><Roadmap /></ProtectedRoute>} />
+          <Route path="mentorslist" element={<ProtectedRoute role="student"><Mentorslist /></ProtectedRoute>} />
           <Route path="kanban" element={<ProtectedRoute><KanbanBoard /></ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </BrowserRouter></SessionProvider>
   )
 }
 

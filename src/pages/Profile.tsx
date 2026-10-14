@@ -1,3 +1,5 @@
+import { useSession } from '../lib/session';
+import { CabinetNav } from '../components/CabinetNav';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
@@ -202,7 +204,7 @@ useEffect(() => {
   return (
     <div className="landing-page min-h-screen">
       {/* Главный контейнер */}
-      <main className="landing__container pt-28 pb-8 space-y-10">
+      <div className="cabinet-layout"><CabinetNav /><main className="cabinet-content space-y-10">
         
         {/* Баннер приветствия */}
         <section className="landing__feature-card bg-linear-to-r from-bg-surface via-brand-light/30 to-bg-surface border-brand/30">
@@ -420,7 +422,7 @@ useEffect(() => {
 
         </div>
 
-      </main>
+      </main></div>
 
       {/* Футер личного кабинета */}
       <footer className="landing__footer mt-16">

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { useSession } from '../lib/session';
 import {
   GraduationCap,
   Sparkles,
@@ -13,6 +15,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 export default function Landing() {
+  const { user } = useSession();
+  const catalog = user?.role === 'mentor' ? '/requests' : '/mentorslist';
   return (
     <div id="main" className="landing-page">
       {/* Background Decorator Gradients */}
@@ -168,10 +172,10 @@ export default function Landing() {
               <span className="landing__section-label">Каталог</span>
               <h2 className="landing__section-title">Каталог менторов</h2>
             </div>
-            <a href="#mentors" className="landing__mentors-link">
-              <span>Смотреть всех менторов</span>
+            <Link to={catalog} className="landing__mentors-link">
+              <span>{user?.role === 'mentor' ? 'Смотреть запросы' : 'Смотреть всех менторов'}</span>
               <ArrowRight />
-            </a>
+            </Link>
           </div>
 
           <div className="landing__mentor-grid">
@@ -209,9 +213,9 @@ export default function Landing() {
                   </div>
                 </div>
 
-                <button className="landing__mentor-button">
+                <Link to={catalog} className="landing__mentor-button text-center">
                   Записаться на сессию
-                </button>
+                </Link>
               </div>
             ))}
 
