@@ -70,5 +70,5 @@ The server will listen on `http://0.0.0.0:8080` by default.
 - `GET /api/v1/roadmap/metrics` returns task/micro-step timing aggregates, type
 	breakdowns, overdue counts, and daily activity. State changes are append-only
 	in `roadmap_task_events`.
-- Migrations `000006`–`000009` add task timing, event history, micro-steps, and
-	micro-step timing fields.
+- Migrations `000008`–`000011` add task timing, event history, micro-steps, and
+	micro-step timing fields; `000012` adds Kanban tasks.
