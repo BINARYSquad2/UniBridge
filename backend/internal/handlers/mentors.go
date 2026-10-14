@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/lib/pq"
 )
 
@@ -17,10 +18,56 @@ type Mentors struct {
 	JWTSecret []byte
 }
 
+func (h Mentors) authenticatedUserID(r *http.Request) (string, error) {
+	var tokenString string
+
+	// Проверяем заголовок Authorization
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+	} else {
+		// Ищем в куках, если в заголовке нет
+		cookie, err := r.Cookie("token")
+		if err == nil {
+			cookieVal := cookie.Value
+			if strings.HasPrefix(cookieVal, "Bearer ") {
+				tokenString = strings.TrimPrefix(cookieVal, "Bearer ")
+			} else {
+				tokenString = cookieVal
+			}
+		}
+	}
+
+	if tokenString == "" {
+		return "", errors.New("no token found")
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		return h.JWTSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return "", errors.New("invalid token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", errors.New("invalid claims")
+	}
+
+	sub, ok := claims["sub"].(string)
+	if !ok {
+		if uid, ok := claims["user_id"].(string); ok {
+			return uid, nil
+		}
+		return "", errors.New("user id not found in token")
+	}
+
+	return sub, nil
+}
+
 func (h Mentors) current(w http.ResponseWriter, r *http.Request) (authUser, bool) {
 	var u authUser
-	rm := Roadmap{JWTSecret: h.JWTSecret}
-	id, err := rm.authenticatedUserID(r)
+	id, err := h.authenticatedUserID(r)
 	if err != nil {
 		writeAuthError(w, 401, "Сессия истекла. Войдите снова.")
 		return u, false

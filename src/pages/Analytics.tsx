@@ -13,7 +13,6 @@ import {
   BookOpen,
   Code2,
   UserCheck,
-  TrendingUp,
 } from 'lucide-react';
 
 interface RoadmapTask {
