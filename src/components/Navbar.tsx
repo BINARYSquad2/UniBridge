@@ -1,6 +1,5 @@
-
 import { useEffect, useState } from 'react';
-import { LogOut, Menu, X, GraduationCap} from 'lucide-react';
+import { Menu, X, GraduationCap, LogOut, User } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const NAV_LINKS = [
@@ -10,14 +9,14 @@ const NAV_LINKS = [
 ];
 
 export const Navbar: React.FC = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => Boolean(localStorage.getItem('access_token'))
   );
+
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -89,33 +88,41 @@ export const Navbar: React.FC = () => {
           ))}
         </nav>
 
-        {/* Десктопные кнопки */}
-        <div className="hidden md:flex items-center gap-3 shrink-0">
+        {/* Кнопки действий (Десктоп) */}
+        <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <>
               <Link
                 to="/profile"
-                className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-sm transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
+                className="flex items-center gap-2 rounded-xl bg-bg-surface border border-border px-4 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:border-brand/40 active:scale-95"
               >
-                Кабинет
+                <User className="h-4 w-4 text-brand" />
+                Личный кабинет
               </Link>
-
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-xl border border-transparent px-4 py-2 text-sm font-bold text-text-secondary transition-colors duration-200 hover:border-red-500 hover:bg-red-50 hover:text-red-700"
+                className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2.5 text-sm font-bold text-red-600 transition-all duration-200 hover:bg-red-500/20 active:scale-95"
               >
                 <LogOut className="h-4 w-4" />
                 Выйти
               </button>
             </>
           ) : (
-            <Link
-              to="/login"
-              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-sm transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
-            >
-              Авторизация
-            </Link>
+            <>
+              <Link
+                to="/login"
+                className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-sm transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
+              >
+                Авторизация
+              </Link>
+              <Link
+                to="/register"
+                className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
+              >
+                Начать бесплатно
+              </Link>
+            </>
           )}
         </div>
 
@@ -164,32 +171,39 @@ export const Navbar: React.FC = () => {
               <hr className="border-border my-2" />
 
               {isAuthenticated ? (
-                <div className="grid grid-cols-2 gap-3">
+                <>
                   <Link
                     to="/profile"
                     onClick={closeMobileMenu}
-                    className="flex items-center justify-center py-2.5 text-sm font-bold text-text-primary bg-brand rounded-xl hover:bg-brand-hover transition-colors shadow-sm"
+                    className="text-center py-2.5 text-base font-bold text-text-primary border border-border rounded-xl hover:bg-bg-primary transition-colors"
                   >
-                    Кабинет
+                    Личный кабинет
                   </Link>
-
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-bold text-text-secondary transition-colors hover:border-red-500 hover:bg-red-50 hover:text-red-700"
+                    className="text-center py-2.5 text-base font-bold text-red-600 bg-red-500/10 rounded-xl hover:bg-red-500/20 transition-colors"
                   >
-                    <LogOut className="h-4 w-4" />
                     Выйти
                   </button>
-                </div>
+                </>
               ) : (
-                <Link
-                  to="/login"
-                  onClick={closeMobileMenu}
-                  className="flex w-full items-center justify-center py-3 text-sm font-bold text-text-primary bg-brand rounded-xl hover:bg-brand-hover transition-colors shadow-sm"
-                >
-                  Авторизация
-                </Link>
+                <>
+                  <Link
+                    to="/login"
+                    onClick={closeMobileMenu}
+                    className="text-center py-2.5 text-base font-bold text-text-primary border border-border rounded-xl hover:bg-bg-primary transition-colors"
+                  >
+                    Войти
+                  </Link>
+                  <Link
+                    to="/register"
+                    onClick={closeMobileMenu}
+                    className="text-center py-2.5 text-base font-bold text-text-primary bg-brand rounded-xl hover:bg-brand-hover transition-colors shadow-xs"
+                  >
+                    Начать бесплатно
+                  </Link>
+                </>
               )}
             </nav>
           </div>

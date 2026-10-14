@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { useSession } from '../lib/session';
 import {
   GraduationCap,
   Sparkles,
@@ -11,8 +13,11 @@ import {
   Target,
   Brain
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+
 export default function Landing() {
+  const { user } = useSession();
+  const catalog = user?.role === 'mentor' ? '/requests' : '/mentorslist';
+
   return (
     <div id="main" className="landing-page">
       {/* Background Decorator Gradients */}
@@ -23,7 +28,7 @@ export default function Landing() {
       <div className="landing__container">
 
         {/* Hero Section */}
-        <section id="main" className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
+        <section className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
           <div className="landing__hero-content">
 
             {/* Top Badge */}
@@ -41,13 +46,13 @@ export default function Landing() {
               и лучших экспертов
             </h1>
 
-            {/* Description (Пункт 1) */}
+            {/* Description */}
             <p className="landing__description">
               Мы создаем твой персональный маршрут поступления. Получи честный
               опыт обучения из первых уст и работай со студентами топовых ВУЗов.
             </p>
 
-            {/* Call to Actions (Пункт 10) */}
+            {/* Call to Actions */}
             <div className="landing__hero-actions">
               <Link to="/login" className="landing__primary-button">
                 <span>Подобрать ментора</span>
@@ -59,7 +64,7 @@ export default function Landing() {
               </Link>
             </div>
 
-            {/* Social Proof Badges (Пункт 2, 3) */}
+            {/* Social Proof Badges */}
             <div className="landing__social-proof">
               <div className="landing__proof-item">
                 <ShieldCheck />
@@ -87,13 +92,12 @@ export default function Landing() {
         <div className="landing__container">
           <div className="landing__section-header">
             <span className="landing__section-label">Почему UniBridge</span>
-            {/* Пункт 4 */}
             <h2 className="landing__section-title">Все для успешного портфолио в один клик</h2>
           </div>
 
           <div className="landing__features-grid">
             
-            {/* Feature 1 (Пункт 5) */}
+            {/* Feature 1 */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Users />
@@ -114,7 +118,7 @@ export default function Landing() {
               </ul>
             </div>
 
-            {/* Feature 2 (Пункт 6) */}
+            {/* Feature 2 */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Brain />
@@ -135,7 +139,7 @@ export default function Landing() {
               </ul>
             </div>
 
-            {/* Feature 3 (Пункт 7) */}
+            {/* Feature 3 */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Target />
@@ -160,7 +164,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Top Mentors Catalog Section (Пункт 8) */}
+      {/* Top Mentors Catalog Section */}
       <section id="mentors" className="landing__mentors">
         <div className="landing__container">
           <div className="landing__mentors-header">
@@ -168,15 +172,13 @@ export default function Landing() {
               <span className="landing__section-label">Каталог</span>
               <h2 className="landing__section-title">Каталог менторов</h2>
             </div>
-            <a href="#mentors" className="landing__mentors-link">
-              <span>Смотреть всех менторов</span>
+            <Link to={catalog} className="landing__mentors-link">
+              <span>{user?.role === 'mentor' ? 'Смотреть запросы' : 'Смотреть всех менторов'}</span>
               <ArrowRight />
-            </a>
+            </Link>
           </div>
 
           <div className="landing__mentor-grid">
-
-            {/* Mentor Card Sample */}
             {[
               { name: 'Алихан Смаилов', role: 'Студент', uni: 'NUS (Сингапур)', rating: '4.9', tags: ['Computer Science', 'Full Scholarship', 'SAT'] },
               { name: 'Диана Аспанова', role: 'Выпускник', uni: 'KAIST (Южная Корея)', rating: '5.0', tags: ['AI & Robotics', 'GKS Grant', 'IELTS'] },
@@ -209,17 +211,16 @@ export default function Landing() {
                   </div>
                 </div>
 
-                <button className="landing__mentor-button">
+                <Link to={catalog} className="landing__mentor-button text-center">
                   Записаться на сессию
-                </button>
+                </Link>
               </div>
             ))}
-
           </div>
         </div>
       </section>
 
-      {/* CTA Section (Пункт 9) */}
+      {/* CTA Section */}
       <section className="landing__cta">
         <div className="landing__cta-container">
           <div className="landing__cta-content">

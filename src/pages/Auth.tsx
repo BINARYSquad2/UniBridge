@@ -74,7 +74,7 @@ const getApiErrorMessage = (body: string, fallback: string) => {
       if (typeof responseMessage === 'string') message = responseMessage;
     }
   } catch {
-    // A plain-text or HTML error body is still useful to surface below.
+    // Plain text fallback
   }
 
   if (!message) return fallback;
@@ -91,6 +91,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
   const [successMessage, setSuccessMessage] = useState('');
 
   const [formData, setFormData] = useState({
+    bio: '',
     name: '',
     surname: '',
     email: '',
@@ -103,7 +104,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
     portfolioStage: PORTFOLIO_STAGES[0],
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -122,7 +123,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
     setErrorMessage('');
     setSuccessMessage('');
 
-    // Очищаем старый токен перед новым запросом
     localStorage.removeItem('access_token');
 
     const payload = endpoint === 'login'
@@ -134,6 +134,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          ...(formData.role === 'mentor' && { bio: formData.bio, subjects: formData.interests }),
           ...(formData.role === 'student' && {
             school_grade: Number(formData.schoolGrade),
             interests: formData.interests,
@@ -152,46 +153,40 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
 
       const responseBody = await response.text();
 
-      // Если ответ от сервера не OK (401, 404, 400 и т.д.)
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error(getApiErrorMessage(
             responseBody,
-            'Сервис авторизации не найден (404). Проверьте адрес API и запущен ли сервер.',
+            'Сервис авторизации не найден (404). Проверьте адрес API и запущен ли сервер.'
           ));
-          
         }
         if (endpoint === 'login' && response.status === 401) {
           throw new Error('Неверный email или пароль');
         }
         throw new Error(getApiErrorMessage(
           responseBody,
-          endpoint === 'login' ? 'Не удалось выполнить вход' : 'Ошибка регистрации',
+          endpoint === 'login' ? 'Не удалось выполнить вход' : 'Ошибка регистрации'
         ));
-        
       }
 
-      // Проверка наличия access_token
       const result = responseBody ? JSON.parse(responseBody) as { access_token?: string } : null;
-        if (!result || typeof result !== 'object' || !result.access_token) {
-          if (endpoint === 'login') {
-            throw new Error('Неверный email или пароль');
-          }
-          throw new Error('Сервер вернул некорректный ответ');
+      if (!result || typeof result !== 'object' || !result.access_token) {
+        if (endpoint === 'login') {
+          throw new Error('Неверный email или пароль');
         }
-
-        // Успешный вход или регистрация
-        localStorage.setItem('access_token', result.access_token);
-        setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
-        
-        onClose?.();
-        navigate('/profile');
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Неверный email или пароль');
-      } finally {
-        setIsSubmitting(false);
+        throw new Error('Сервер вернул некорректный ответ');
       }
-    };
+
+      localStorage.setItem('access_token', result.access_token);
+      setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
+      onClose?.();
+      navigate('/profile');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,8 +197,18 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
     }
 
     if (formData.role === 'mentor') {
-      await submitAuth('register');
-      return;
+      if (step === 1) {
+        setStep(2);
+        return;
+      }
+      if (step === 2) {
+        if (!formData.interests.length) {
+          setErrorMessage('Выберите хотя бы одно направление');
+          return;
+        }
+        await submitAuth('register');
+        return;
+      }
     }
 
     if (step < 6) {
@@ -260,6 +265,21 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           </div>
         )}
 
+        {mode === 'register' && formData.role === 'mentor' && (
+          <div className="mb-6">
+            <div className="flex justify-between text-xs font-bold text-text-secondary mb-2">
+              <span>Шаг {step} из 2 (Ментор)</span>
+              <span>{step === 1 ? 'Данные и О себе' : 'Направления'}</span>
+            </div>
+            <div className="h-1.5 w-full bg-bg-primary rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand transition-all duration-300"
+                style={{ width: `${(step / 2) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-text-primary font-black text-2xl shadow-xs mb-4">
             U
@@ -267,20 +287,22 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           <h2 className="text-2xl sm:text-3xl font-black text-text-primary tracking-tight">
             {mode === 'login' && 'С возвращением!'}
             {mode === 'register' && step === 1 && 'Создать аккаунт'}
-            {mode === 'register' && step === 2 && 'В каком вы классе?'}
-            {mode === 'register' && step === 3 && 'Что вам интересно?'}
-            {mode === 'register' && step === 4 && 'В чем вы сильны?'}
-            {mode === 'register' && step === 5 && 'Что хотите улучшить?'}
-            {mode === 'register' && step === 6 && 'Этап портфолио'}
+            {mode === 'register' && formData.role === 'student' && step === 2 && 'В каком вы классе?'}
+            {mode === 'register' && formData.role === 'student' && step === 3 && 'Что вам интересно?'}
+            {mode === 'register' && formData.role === 'student' && step === 4 && 'В чем вы сильны?'}
+            {mode === 'register' && formData.role === 'student' && step === 5 && 'Что хотите улучшить?'}
+            {mode === 'register' && formData.role === 'student' && step === 6 && 'Этап портфолио'}
+            {mode === 'register' && formData.role === 'mentor' && step === 2 && 'Выберите направления'}
           </h2>
           <p className="text-sm font-medium text-text-secondary mt-2">
             {mode === 'login' && 'Введите данные для входа в UniBridge'}
             {mode === 'register' && step === 1 && 'Присоединяйтесь к платформе менторства'}
-            {mode === 'register' && step === 2 && 'Выберите класс с 7-го по 11-й'}
-            {mode === 'register' && step === 3 && 'Выберите 3-4 предмета и направления, которые вам импонируют'}
-            {mode === 'register' && step === 4 && 'Отметьте навыки, в которых вы чувствуете уверенность'}
-            {mode === 'register' && step === 5 && 'Укажите навыки, над которыми стоит поработать'}
-            {mode === 'register' && step === 6 && 'На каком этапе построения маршрута вы находитесь'}
+            {mode === 'register' && formData.role === 'student' && step === 2 && 'Выберите класс с 7-го по 11-й'}
+            {mode === 'register' && formData.role === 'student' && step === 3 && 'Выберите 3-4 предмета и направления, которые вам импонируют'}
+            {mode === 'register' && formData.role === 'student' && step === 4 && 'Отметьте навыки, в которых вы чувствуете уверенность'}
+            {mode === 'register' && formData.role === 'student' && step === 5 && 'Укажите навыки, над которыми стоит поработать'}
+            {mode === 'register' && formData.role === 'student' && step === 6 && 'На каком этапе построения маршрута вы находитесь'}
+            {mode === 'register' && formData.role === 'mentor' && step === 2 && 'Укажите направления, по которым вы готовы менторить'}
           </p>
         </div>
 
@@ -378,24 +400,43 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
               </div>
 
               {mode === 'register' && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
-                    Я хочу зарегистрироваться как
-                  </label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleChange}
-                    className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary focus:border-brand focus:outline-none transition-colors"
-                  >
-                    <option value="student">Ученик</option>
-                    <option value="mentor">Ментор</option>
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                      Я хочу зарегистрироваться как
+                    </label>
+                    <select
+                      name="role"
+                      value={formData.role}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary focus:border-brand focus:outline-none transition-colors"
+                    >
+                      <option value="student">Ученик</option>
+                      <option value="mentor">Ментор</option>
+                    </select>
+                  </div>
+
+                  {formData.role === 'mentor' && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                        О себе (Bio)
+                      </label>
+                      <textarea
+                        name="bio"
+                        rows={3}
+                        placeholder="Расскажите о своем опыте и достижениях..."
+                        value={formData.bio}
+                        onChange={handleChange}
+                        className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors resize-none"
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
 
+          {/* Шаг 2 для ученика: Класс */}
           {step === 2 && mode === 'register' && formData.role === 'student' && (
             <div>
               <label htmlFor="schoolGrade" className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
@@ -416,7 +457,8 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {step === 3 && mode === 'register' && (
+          {/* Интересы / Направления (Шаг 3 для ученика, Шаг 2 для ментора) */}
+          {((step === 3 && formData.role === 'student') || (step === 2 && formData.role === 'mentor')) && mode === 'register' && (
             <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
               {SUBJECT_DIRECTIONS.map((item) => {
                 const isSelected = formData.interests.includes(item);
@@ -438,7 +480,8 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {step === 4 && mode === 'register' && (
+          {/* Шаг 4 для ученика: Сильные стороны */}
+          {step === 4 && mode === 'register' && formData.role === 'student' && (
             <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
               {SKILLS_LIST.map((skill) => {
                 const isSelected = formData.strengths.includes(skill);
@@ -460,7 +503,8 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {step === 5 && mode === 'register' && (
+          {/* Шаг 5 для ученика: Что улучшить */}
+          {step === 5 && mode === 'register' && formData.role === 'student' && (
             <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
               {SKILLS_LIST.map((skill) => {
                 const isSelected = formData.weaknesses.includes(skill);
@@ -482,7 +526,8 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {step === 6 && mode === 'register' && (
+          {/* Шаг 6 для ученика: Этап портфолио */}
+          {step === 6 && mode === 'register' && formData.role === 'student' && (
             <div className="space-y-3">
               {PORTFOLIO_STAGES.map((stage) => {
                 const isSelected = formData.portfolioStage === stage;
@@ -542,8 +587,10 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                 ? 'Отправка...'
                 : mode === 'login'
                 ? 'Войти в аккаунт'
-                : formData.role === 'mentor'
-                ? 'Зарегистрироваться'
+                : formData.role === 'mentor' && step === 2
+                ? 'Завершить регистрацию'
+                : formData.role === 'mentor' && step === 1
+                ? 'Продолжить'
                 : step < 6
                 ? 'Продолжить'
                 : 'Завершить регистрацию'}

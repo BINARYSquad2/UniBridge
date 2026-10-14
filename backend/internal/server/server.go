@@ -12,23 +12,35 @@ import (
 
 func New(cfg config.Config, db *sql.DB) *http.Server {
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/healthz", handlers.Healthz)
 	mux.HandleFunc("/api/v1/status", handlers.Status)
-	auth := handlers.Auth{DB: db, JWTSecret: []byte(cfg.AuthSecret)}
+
+	auth := handlers.Auth{
+		DB:        db,
+		JWTSecret: []byte(cfg.AuthSecret),
+	}
+
 	mux.HandleFunc("/api/v1/auth/register", auth.Register)
 	mux.HandleFunc("/api/v1/auth/login", auth.Login)
-	mux.HandleFunc("GET /api/v1/profile/me", auth.CurrentProfile)
+
 	roadmap := handlers.Roadmap{
 		DB:        db,
 		JWTSecret: []byte(cfg.AuthSecret),
 		APIKey:    cfg.GeminiAPIKey,
 		Model:     cfg.LLMModel,
 	}
-	kanban := handlers.Kanban{DB: db, JWTSecret: []byte(cfg.AuthSecret)}
+
+	kanban := handlers.Kanban{
+		DB:        db,
+		JWTSecret: []byte(cfg.AuthSecret),
+	}
+
 	mux.HandleFunc("GET /api/v1/kanban/tasks", kanban.ListTasks)
 	mux.HandleFunc("POST /api/v1/kanban/tasks", kanban.CreateTask)
 	mux.HandleFunc("PATCH /api/v1/kanban/tasks/{taskID}", kanban.UpdateTask)
 	mux.HandleFunc("POST /api/v1/kanban/roadmap-steps/{stepID}/import", kanban.ImportRoadmapStep)
+
 	mux.HandleFunc("POST /api/v1/roadmap/generate", roadmap.Generate)
 	mux.HandleFunc("GET /api/v1/roadmap/current", roadmap.Current)
 	mux.HandleFunc("PATCH /api/v1/roadmap/tasks/{taskID}", roadmap.UpdateTask)

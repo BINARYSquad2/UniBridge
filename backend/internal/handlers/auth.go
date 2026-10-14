@@ -39,6 +39,8 @@ type authResponse struct {
 type registerRequest struct {
 	Name           string   `json:"name"`
 	Surname        string   `json:"surname"`
+	Bio            string   `json:"bio"`
+	Subjects       []string `json:"subjects"`
 	FullName       string   `json:"full_name"`
 	Email          string   `json:"email"`
 	Password       string   `json:"password"`
@@ -78,6 +80,7 @@ func (a Auth) CurrentProfile(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+
 	userID, err := authenticatedUserID(r, a.JWTSecret)
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "authentication required")
@@ -89,7 +92,14 @@ func (a Auth) CurrentProfile(w http.ResponseWriter, r *http.Request) {
 		SELECT id::text, email, name, surname, full_name, role::text
 		FROM users
 		WHERE id = $1
-	`, userID).Scan(&profile.ID, &profile.Email, &profile.Name, &profile.Surname, &profile.FullName, &profile.Role)
+	`, userID).Scan(
+		&profile.ID,
+		&profile.Email,
+		&profile.Name,
+		&profile.Surname,
+		&profile.FullName,
+		&profile.Role,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusNotFound, "user not found")
 		return
@@ -122,21 +132,31 @@ func (a Auth) loadStudentProfile(r *http.Request, userID string) (studentProfile
 	var profile studentProfileData
 	var schoolGrade sql.NullInt64
 	var interests, strengths, weaknesses pq.StringArray
+
 	err := a.DB.QueryRowContext(r.Context(), `
 		SELECT school_grade, interests, strengths, weaknesses, portfolio_stage::text
 		FROM student_profiles
 		WHERE user_id = $1
-	`, userID).Scan(&schoolGrade, &interests, &strengths, &weaknesses, &profile.PortfolioStage)
+	`, userID).Scan(
+		&schoolGrade,
+		&interests,
+		&strengths,
+		&weaknesses,
+		&profile.PortfolioStage,
+	)
 	if err != nil {
 		return studentProfileData{}, err
 	}
+
 	if schoolGrade.Valid {
 		grade := int(schoolGrade.Int64)
 		profile.SchoolGrade = &grade
 	}
+
 	profile.Interests = []string(interests)
 	profile.Strengths = []string(strengths)
 	profile.Weaknesses = []string(weaknesses)
+
 	return profile, nil
 }
 
@@ -153,9 +173,11 @@ func authenticatedUserID(r *http.Request, secret []byte) (string, error) {
 		}
 		return secret, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+
 	if err != nil || !token.Valid || claims.Subject == "" {
 		return "", errors.New("invalid bearer token")
 	}
+
 	return claims.Subject, nil
 }
 
@@ -173,6 +195,7 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 
 	input.Name = strings.TrimSpace(input.Name)
 	input.Surname = strings.TrimSpace(input.Surname)
+
 	if input.Name == "" || input.Surname == "" {
 		legacyName := strings.Fields(strings.TrimSpace(input.FullName))
 		if len(legacyName) >= 2 {
@@ -180,24 +203,40 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 			input.Surname = strings.Join(legacyName[1:], " ")
 		}
 	}
+
 	input.FullName = strings.TrimSpace(input.Name + " " + input.Surname)
 	input.Email = normalizeEmail(input.Email)
+
 	if input.Role == "" {
 		input.Role = "student"
 	}
-	if input.Name == "" || len(input.Name) > 128 || input.Surname == "" || len(input.Surname) > 128 ||
+
+	if input.Name == "" || len(input.Name) > 128 ||
+		input.Surname == "" || len(input.Surname) > 128 ||
 		len(input.FullName) > 255 || !validEmail(input.Email) ||
 		len(input.Password) < 8 || len(input.Password) > 72 ||
 		(input.Role != "student" && input.Role != "mentor") {
 		writeAuthError(w, http.StatusBadRequest, "invalid registration details")
 		return
 	}
-	if input.Role == "student" && (input.SchoolGrade == nil || *input.SchoolGrade < 7 || *input.SchoolGrade > 11) {
+
+	if input.Role == "student" &&
+		(input.SchoolGrade == nil || *input.SchoolGrade < 7 || *input.SchoolGrade > 11) {
 		writeAuthError(w, http.StatusBadRequest, "school_grade must be between 7 and 11")
 		return
 	}
+
 	if input.Role == "student" && !validPortfolioStage(input.PortfolioStage) {
 		writeAuthError(w, http.StatusBadRequest, "invalid portfolio_stage")
+		return
+	}
+
+	if input.Role == "mentor" &&
+		(len(strings.TrimSpace(input.Bio)) == 0 ||
+			len(input.Bio) > 4000 ||
+			len(input.Subjects) == 0 ||
+			len(input.Subjects) > 14) {
+		writeAuthError(w, http.StatusBadRequest, "Укажите описание и направления ментора")
 		return
 	}
 
@@ -220,8 +259,20 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO users (email, password_hash, name, surname, full_name, role)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id::text, email, name, surname, full_name, role::text
-	`, input.Email, string(passwordHash), input.Name, input.Surname, input.FullName, input.Role).Scan(
-		&user.ID, &user.Email, &user.Name, &user.Surname, &user.FullName, &user.Role,
+	`,
+		input.Email,
+		string(passwordHash),
+		input.Name,
+		input.Surname,
+		input.FullName,
+		input.Role,
+	).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.Surname,
+		&user.FullName,
+		&user.Role,
 	)
 	if err != nil {
 		var postgresError *pq.Error
@@ -229,24 +280,50 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 			writeAuthError(w, http.StatusConflict, "email is already registered")
 			return
 		}
+
 		log.Printf("register: insert user: %v", err)
 		writeAuthError(w, http.StatusInternalServerError, "could not create account")
 		return
 	}
+
 	if input.Role == "student" {
 		_, err = tx.ExecContext(r.Context(), `
 			INSERT INTO student_profiles (
 				user_id, school_grade, interests, strengths, weaknesses, portfolio_stage
 			) VALUES ($1, $2, $3, $4, $5, $6)
-		`, user.ID, *input.SchoolGrade, pq.Array(input.Interests), pq.Array(input.Strengths),
-			pq.Array(input.Weaknesses), input.PortfolioStage)
+		`,
+			user.ID,
+			*input.SchoolGrade,
+			pq.Array(input.Interests),
+			pq.Array(input.Strengths),
+			pq.Array(input.Weaknesses),
+			input.PortfolioStage,
+		)
 		if err != nil {
 			log.Printf("register: insert student profile: %v", err)
 			writeAuthError(w, http.StatusInternalServerError, "could not create student profile")
 			return
 		}
+
 		user.SchoolGrade = input.SchoolGrade
 	}
+
+	if input.Role == "mentor" {
+		_, err = tx.ExecContext(r.Context(), `
+			INSERT INTO mentor_profiles (user_id, bio, subjects)
+			VALUES ($1, $2, $3)
+		`,
+			user.ID,
+			strings.TrimSpace(input.Bio),
+			pq.Array(input.Subjects),
+		)
+		if err != nil {
+			log.Printf("register: insert mentor profile: %v", err)
+			writeAuthError(w, http.StatusInternalServerError, "Не удалось создать профиль ментора")
+			return
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		log.Printf("register: commit transaction: %v", err)
 		writeAuthError(w, http.StatusInternalServerError, "could not create account")
@@ -276,6 +353,7 @@ func (a Auth) Login(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
 	input.Email = normalizeEmail(input.Email)
 	if !validEmail(input.Email) || input.Password == "" || len(input.Password) > 72 {
 		writeAuthError(w, http.StatusBadRequest, "invalid login details")
@@ -285,15 +363,24 @@ func (a Auth) Login(w http.ResponseWriter, r *http.Request) {
 	var user authUser
 	var passwordHash string
 	var schoolGrade sql.NullInt64
+
 	err := a.DB.QueryRowContext(r.Context(), `
-		SELECT u.id::text, u.email, u.name, u.surname, u.full_name, u.role::text, u.password_hash, sp.school_grade
+		SELECT u.id::text, u.email, u.name, u.surname, u.full_name,
+		       u.role::text, u.password_hash, sp.school_grade
 		FROM users u
 		LEFT JOIN student_profiles sp ON sp.user_id = u.id
 		WHERE u.email = $1
 	`, input.Email).Scan(
-		&user.ID, &user.Email, &user.Name, &user.Surname, &user.FullName, &user.Role, &passwordHash, &schoolGrade,
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.Surname,
+		&user.FullName,
+		&user.Role,
+		&passwordHash,
+		&schoolGrade,
 	)
-	
+
 	// Если пользователя нет в базе — отдаем 401 Unauthorized с сообщением о неверных данных
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusUnauthorized, "invalid email or password")
@@ -339,13 +426,16 @@ func decodeAuthRequest(w http.ResponseWriter, r *http.Request, destination any) 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
+
 	if err := decoder.Decode(destination); err != nil {
 		return err
 	}
+
 	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if !errors.Is(decoder.Decode(&trailing), io.EOF) {
 		return errors.New("request must contain a single JSON object")
 	}
+
 	return nil
 }
 
