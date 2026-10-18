@@ -1,4 +1,7 @@
 import { CabinetNav } from '../components/CabinetNav';
+import '../styles/CabinetLayout.css';
+import '../styles/Landing.css';
+import '../styles/Profile.css';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
@@ -149,28 +152,28 @@ useEffect(() => {
 }, [navigate]);
 
   if (isLoading) {
-    return <main className="landing__container min-h-screen pt-28">Загружаем профиль...</main>;
+    return <main className="landing__container tw-793346c736 tw-ca36a3519d">Загружаем профиль...</main>;
   }
 
   if (errorMessage) {
     return (
-      <main className="landing__container min-h-screen pt-28">
-        <p role="alert" className="text-sm font-semibold text-red-700">{errorMessage}</p>
+      <main className="landing__container tw-793346c736 tw-ca36a3519d">
+        <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">{errorMessage}</p>
       </main>
     );
   }
 
   if (profile?.role === 'mentor') {
     return (
-      <div className="landing-page min-h-screen">
+      <div className="landing-page tw-793346c736">
         <div className="cabinet-layout">
           <CabinetNav />
 
           <main className="cabinet-content">
             <header className="profile-heading">
               <span className="landing__section-label">Личный кабинет</span>
-              <h1 className="landing__section-title mt-3">Мой профиль</h1>
-              <p className="text-text-secondary mt-4">
+              <h1 className="landing__section-title tw-eccd13ef4f">Мой профиль</h1>
+              <p className="tw-16720c5987 tw-0ab8667228">
                 Информация о вас и вашей работе на платформе.
               </p>
             </header>
@@ -250,12 +253,12 @@ useEffect(() => {
   }
 
   if (profile?.role !== 'student') {
-    return <main className="landing__container min-h-screen pt-28">Профиль не найден.</main>;
+    return <main className="landing__container tw-793346c736 tw-ca36a3519d">Профиль не найден.</main>;
   }
 
   const student = profile.student_profile;
   if (!student) {
-    return <main className="landing__container min-h-screen pt-28">Профиль ученика не найден.</main>;
+    return <main className="landing__container tw-793346c736 tw-ca36a3519d">Профиль ученика не найден.</main>;
   }
 
   const stats = [
@@ -281,35 +284,35 @@ useEffect(() => {
     : 0;
 
   return (
-    <div className="landing-page min-h-screen">
+    <div className="landing-page tw-793346c736">
       {/* Главный контейнер */}
-      <div className="cabinet-layout"><CabinetNav /><main className="cabinet-content space-y-10">
+      <div className="cabinet-layout"><CabinetNav /><main className="cabinet-content tw-8107d37319">
         
         {/* Баннер приветствия */}
-        <section className="landing__feature-card bg-linear-to-r from-bg-surface via-brand-light/30 to-bg-surface border-brand/30">
+        <section className="landing__feature-card tw-a071d694e3 tw-1b51d35d70 tw-11bf117a71 tw-2bc47d731f tw-5c5681dfff">
           <div className="landing__hero-decoration"></div>
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-            <div className="space-y-2">
+          <div className="tw-60fbb77139 tw-8dddea0773 tw-4102dddfda tw-60541e1e26 tw-3e62563924 tw-8ef2268efb tw-0d304f904c tw-d89972fe17 tw-236812d64c">
+            <div className="tw-6f7e013d64">
               <div className="landing__badge">
                 <GraduationCap />
                 {student.school_grade ? `Ученик · ${student.school_grade} класс` : 'Ученик'}
               </div>
-              <h1 className="landing__title text-3xl sm:text-4xl lg:text-4xl">
+              <h1 className="landing__title tw-751fb0d102 tw-a8e2faff04 tw-0c5d33694a">
                 С возвращением, <span className="landing__title-accent">{profile.full_name.split(' ')[0]}</span>!
               </h1>
-              <p className="landing__description text-sm sm:text-base">
+              <p className="landing__description tw-fc7473ca09 tw-9bcf466577">
                 {profile.email} · {PORTFOLIO_STAGE_LABELS[student.portfolio_stage] ?? student.portfolio_stage}
               </p>
             </div>
             
-            <Link to="/roadmap" className="landing__primary-button shrink-0">
+            <Link to="/roadmap" className="landing__primary-button tw-012fbd121f">
               Roadmap обучения <ChevronRight />
             </Link>
           </div>
         </section>
 
         {/* Сетка статистики */}
-        <section className="landing__stats rounded-3xl border border-border">
+        <section className="landing__stats tw-ea189a088a tw-ca6bcd4b6f tw-18049387f0">
           <div className="landing__stats-grid">
             {stats.map((stat, index) => (
               <div key={index} className="landing__stat">
@@ -322,44 +325,44 @@ useEffect(() => {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <section className="tw-f3c543ad5f tw-d7c8339810 tw-9a638cfe82 tw-0d304f904c">
           {studentSections.map((section) => (
-            <div key={section.title} className="landing__feature-card space-y-4">
+            <div key={section.title} className="landing__feature-card tw-3e7ce58d64">
               <h2 className="landing__feature-title">{section.title}</h2>
               {section.items.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="tw-6f7e013d64">
                   {section.items.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm font-medium text-text-secondary">
-                      <Circle className="h-3.5 w-3.5 text-brand shrink-0 mt-1" />
+                    <li key={item} className="tw-60fbb77139 tw-60541e1e26 tw-77a2a20e90 tw-fc7473ca09 tw-2689f39580 tw-16720c5987">
+                      <Circle className="tw-7fc7f732bf tw-bf600f8e02 tw-17d820623e tw-012fbd121f tw-b6b02c0ebe" />
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-text-secondary">Пока не заполнено</p>
+                <p className="tw-fc7473ca09 tw-16720c5987">Пока не заполнено</p>
               )}
             </div>
           ))}
         </section>
 
         {/* Основной контент (Roadmap и Твой Ментор + Микро-шаги) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="tw-f3c543ad5f tw-d7c8339810 tw-19d9b25e8f tw-1500488ab7">
           
           {/* Левая колонка: Roadmap (2 столбца) */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black text-text-primary flex items-center gap-2">
-                <MapPin className="text-brand h-6 w-6" /> Roadmap обучения
+          <div className="tw-422d10025c tw-b3542e0588">
+            <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb">
+              <h2 className="tw-3febee094e tw-7fbb85697d tw-5358eecb47 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90">
+                <MapPin className="tw-17d820623e tw-f6fe902450 tw-7ec10f86d9" /> Roadmap обучения
               </h2>
               {roadmap && (
-                <span className="text-xs font-bold text-brand bg-brand/10 px-3 py-1.5 rounded-full border border-brand/20">
+                <span className="tw-359090c2d5 tw-69450ef148 tw-17d820623e tw-ce45d053a5 tw-0e17f2bd90 tw-ec0091ee00 tw-ac204c1088 tw-ca6bcd4b6f tw-8609a13c3e">
                   {roadmapProgress}% выполнено
                 </span>
               )}
             </div>
 
             {roadmap ? (
-              <div className="grid gap-6">
+              <div className="tw-f3c543ad5f tw-0d304f904c">
               {roadmap.steps.map((step) => {
                 const completedTasks = step.tasks.filter((task) => task.completed).length;
                 const stepProgress = step.tasks.length
@@ -370,51 +373,50 @@ useEffect(() => {
                   key={step.id}
                   className="landing__feature-card"
                 >
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="tw-60fbb77139 tw-8ef2268efb tw-3960ffc248 tw-da019856f2">
                     <span className="landing__section-label">
                       {step.phase} · {step.status === 'completed' ? 'Завершено' : step.status === 'in_progress' ? 'В процессе' : 'Запланировано'}
                     </span>
-                    <span className="text-xs font-bold text-brand">Impact {step.impactScore}/100</span>
+                    <span className="tw-359090c2d5 tw-69450ef148 tw-17d820623e">Impact {step.impactScore}/100</span>
                   </div>
 
-                  <h3 className="landing__feature-title mb-2">{step.title}</h3>
-                  <p className="text-sm text-text-secondary mb-4">{step.description}</p>
-                  <p className="text-xs font-semibold text-text-secondary mb-3">
+                  <h3 className="landing__feature-title tw-a77ed4d908">{step.title}</h3>
+                  <p className="tw-fc7473ca09 tw-16720c5987 tw-da019856f2">{step.description}</p>
+                  <p className="tw-359090c2d5 tw-e83a7042bc tw-16720c5987 tw-1bb883263e">
                     Срок: {step.estimatedTime} · Задач: {completedTasks}/{step.tasks.length}
                   </p>
                   
                   {/* Прогресс-бар этапа */}
-                  <div className="w-full h-2 bg-bg-primary rounded-full overflow-hidden border border-border mb-6">
+                  <div className="tw-6da6a3c3f7 tw-2f2a842e50 tw-6a2c73aab2 tw-ac204c1088 tw-2cd02d11d1 tw-ca6bcd4b6f tw-18049387f0 tw-b6777c6db9">
                     <div 
-                      className="h-full bg-brand rounded-full transition-all duration-500" 
-                      style={{ width: `${stepProgress}%` }}
+                      className={`tw-668b21aa54 tw-da1032643a tw-ac204c1088 tw-0fe7d7d814 tw-844322115e progress-width--${stepProgress}`}
                     ></div>
                   </div>
 
                   {/* Список подшагов */}
-                  <div className="space-y-3">
+                  <div className="tw-6ed543e2fb">
                     {step.tasks.map((task) => (
-                      <div key={task.id} className="flex items-start gap-3 text-sm">
+                      <div key={task.id} className="tw-60fbb77139 tw-60541e1e26 tw-1004c0c395 tw-fc7473ca09">
                         {task.completed ? (
-                          <CheckCircle2 className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                          <CheckCircle2 className="tw-cd0d9c512c tw-72470489ff tw-17d820623e tw-012fbd121f tw-15e1b1f444" />
                         ) : (
-                          <Circle className="h-5 w-5 text-text-secondary shrink-0 mt-0.5" />
+                          <Circle className="tw-cd0d9c512c tw-72470489ff tw-16720c5987 tw-012fbd121f tw-15e1b1f444" />
                         )}
-                        <span className={task.completed ? 'line-through text-text-secondary' : 'text-text-primary font-medium'}>
-                          {task.title} <span className="text-xs text-text-secondary">({task.duration})</span>
+                        <span className={task.completed ? "tw-093ca5623c tw-16720c5987" : "tw-5358eecb47 tw-2689f39580"}>
+                          {task.title} <span className="tw-359090c2d5 tw-16720c5987">({task.duration})</span>
                         </span>
                       </div>
                     ))}
                     {step.artifacts.length > 0 && (
-                      <p className="pt-2 text-xs text-text-secondary">
+                      <p className="tw-f46b61a9b3 tw-359090c2d5 tw-16720c5987">
                         Результаты: {step.artifacts.join(', ')}
                       </p>
                     )}
                   </div>
 
                   {step.status === 'in_progress' && (
-                    <div className="mt-6 pt-4 border-t border-border flex justify-end">
-                      <Link to="/roadmap" className="landing__primary-button py-2 px-4 text-sm">Продолжить этап</Link>
+                    <div className="tw-31f2553311 tw-173fa8f067 tw-b950dda299 tw-18049387f0 tw-60fbb77139 tw-77c08e015d">
+                      <Link to="/roadmap" className="landing__primary-button tw-03b4dd7f17 tw-f0faeb26d6 tw-fc7473ca09">Продолжить этап</Link>
                     </div>
                   )}
                 </div>
@@ -422,11 +424,11 @@ useEffect(() => {
               })}
               </div>
             ) : (
-              <div className="landing__feature-card space-y-3">
-                <p className="text-sm text-text-secondary">
+              <div className="landing__feature-card tw-6ed543e2fb">
+                <p className="tw-fc7473ca09 tw-16720c5987">
                   {roadmapError || 'Активный план ещё не создан.'}
                 </p>
-                <Link to="/roadmap" className="landing__primary-button inline-flex">
+                <Link to="/roadmap" className="landing__primary-button tw-52083e7da4">
                   Создать учебный план <ChevronRight />
                 </Link>
               </div>
@@ -434,12 +436,12 @@ useEffect(() => {
           </div>
 
           {/* Правая колонка: Твой Ментор и Микро-шаги */}
-          <div className="space-y-6">
+          <div className="tw-b3542e0588">
             
             {/* Вкладка Ментора */}
-            <div className="space-y-3">
-              <h2 className="text-2xl font-black text-text-primary flex items-center gap-2">
-                <Sparkles className="text-brand h-6 w-6" /> Твой ментор
+            <div className="tw-6ed543e2fb">
+              <h2 className="tw-3febee094e tw-7fbb85697d tw-5358eecb47 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90">
+                <Sparkles className="tw-17d820623e tw-f6fe902450 tw-7ec10f86d9" /> Твой ментор
               </h2>
 
               <div className="landing__mentor-card">
@@ -459,38 +461,38 @@ useEffect(() => {
                     <span className="landing__mentor-tag">Q&A Сессии</span>
                   </div>
                 </div>
-                <button className="landing__mentor-button mt-4 flex items-center justify-center gap-2">
-                  <MessageSquare className="h-4 w-4" /> Связаться с ментором
+                <button className="landing__mentor-button tw-0ab8667228 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-77a2a20e90">
+                  <MessageSquare className="tw-11e59c6d5f tw-dc7972ebf3" /> Связаться с ментором
                 </button>
               </div>
             </div>
 
             {/* Блок Микро-шагов */}
-            <div className="space-y-3 pt-4">
-              <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
-                <Target className="text-brand h-5 w-5" /> Микро-шаги на сегодня
+            <div className="tw-6ed543e2fb tw-173fa8f067">
+              <h3 className="tw-d5c9b0001e tw-69450ef148 tw-5358eecb47 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90">
+                <Target className="tw-17d820623e tw-cd0d9c512c tw-72470489ff" /> Микро-шаги на сегодня
               </h3>
 
-              <div className="landing__feature-card space-y-3 p-5">
+              <div className="landing__feature-card tw-6ed543e2fb tw-c07e54fd14">
                 {roadmapTasks.filter((task) => !task.completed).slice(0, 3).map((task) => (
                   <div 
                     key={task.id}
-                    className="p-3.5 rounded-xl bg-bg-primary border border-border flex items-center justify-between gap-3"
+                    className="tw-56796a90be tw-a217b4eaa9 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-1004c0c395"
                   >
-                    <div className="flex items-center gap-3">
-                      <Circle className="h-4 w-4 text-text-secondary shrink-0" />
-                      <span className="text-xs font-bold text-text-primary">
+                    <div className="tw-60fbb77139 tw-3960ffc248 tw-1004c0c395">
+                      <Circle className="tw-11e59c6d5f tw-dc7972ebf3 tw-16720c5987 tw-012fbd121f" />
+                      <span className="tw-359090c2d5 tw-69450ef148 tw-5358eecb47">
                         {task.title}
                       </span>
                     </div>
-                    <span className="text-[10px] font-semibold text-brand flex items-center gap-1 shrink-0">
-                      <Clock className="h-3 w-3" /> {task.duration}
+                    <span className="tw-1dc571a360 tw-e83a7042bc tw-17d820623e tw-60fbb77139 tw-3960ffc248 tw-44ee8ba0a4 tw-012fbd121f">
+                      <Clock className="tw-6a60c09e6a tw-9cea05671a" /> {task.duration}
                     </span>
                   </div>
                 ))}
 
                 {roadmapTasks.filter((task) => !task.completed).length === 0 && (
-                  <p className="text-xs text-text-secondary">
+                  <p className="tw-359090c2d5 tw-16720c5987">
                     {roadmap ? 'Все задачи плана выполнены.' : 'Сгенерируйте план, чтобы увидеть задачи.'}
                   </p>
                 )}
@@ -504,7 +506,7 @@ useEffect(() => {
       </main></div>
 
       {/* Футер личного кабинета */}
-      <footer className="landing__footer mt-16">
+      <footer className="landing__footer tw-5c8999fa38">
         <div className="landing__footer-container">
           <div className="landing__footer-brand">
             <div className="landing__footer-logo">U</div>

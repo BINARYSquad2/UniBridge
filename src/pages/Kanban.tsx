@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import '../styles/Kanban.css';
 import { useLocation } from 'react-router-dom';
+import '../styles/Landing.css';
 import { 
   Kanban, 
   Play, 
@@ -221,58 +223,58 @@ export const KanbanBoard: React.FC = () => {
   const strokeDashoffset = circleCircumference - (progressPercent / 100) * circleCircumference;
 
   return (
-    <div className="landing-page min-h-screen">
+    <div className="landing-page tw-793346c736">
       <div className="landing__hero-decoration" />
       
-      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-8 py-12 space-y-10">
+      <div className="tw-6da6a3c3f7 tw-c0491287cc tw-0e12dc7de9 tw-f0faeb26d6 tw-8fb6f42ff2 tw-61357c0c2f tw-8107d37319">
         
         {/* Шапка и переключатель */}
-        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-border">
-          <div className="space-y-3">
+        <header className="tw-60fbb77139 tw-8dddea0773 tw-4102dddfda tw-bf60a82ffb tw-db6dd3a2aa tw-0d304f904c tw-fe985ca216 tw-65fdbade20 tw-18049387f0">
+          <div className="tw-6ed543e2fb">
             <div className="landing__badge">
-              <Kanban className="w-4 h-4 text-brand" />
+              <Kanban className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" />
               <span>Фокус-режим и задачи</span>
             </div>
-            <h1 className="landing__title text-3xl md:text-4xl font-black">
+            <h1 className="landing__title tw-751fb0d102 tw-c3c844442d tw-7fbb85697d">
               Доска и <span className="landing__title-accent">таймер фокуса</span>
             </h1>
-            <p className="landing__description text-left mx-0 max-w-xl">
+            <p className="landing__description tw-2eba0d65d0 tw-ba8928735d tw-9ef2b581bf">
               Управляйте процессом с помощью Kanban-доски или переключайтесь на полноэкранный таймер микрошагов.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="tw-60fbb77139 tw-3960ffc248 tw-1004c0c395">
             <button
               onClick={() => setIsTaskModalOpen(true)}
-              className="landing__primary-button px-4 py-2.5 text-xs flex items-center gap-2"
+              className="landing__primary-button tw-f0faeb26d6 tw-e7ee55ac7f tw-359090c2d5 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90"
             >
-              <Plus className="w-4 h-4" /> Добавить задачу
+              <Plus className="tw-dc7972ebf3 tw-11e59c6d5f" /> Добавить задачу
             </button>
 
-            <div className="flex items-center gap-1 bg-bg-surface p-1.5 rounded-2xl border border-border shadow-2xs">
+            <div className="tw-60fbb77139 tw-3960ffc248 tw-44ee8ba0a4 tw-48a2a9e0eb tw-cd009d7d20 tw-68f2db624d tw-ca6bcd4b6f tw-18049387f0 tw-ea11cab451">
               <button
                 onClick={() => setActiveTab('kanban')}
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all ${
-                  activeTab === 'kanban' ? 'bg-brand text-text-inverse shadow-xs' : 'text-text-secondary hover:text-text-primary'
+                className={`tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90 tw-f0faeb26d6 tw-03b4dd7f17 tw-359090c2d5 tw-7fbb85697d tw-a217b4eaa9 tw-0fe7d7d814 ${
+                  activeTab === "kanban" ? "tw-da1032643a tw-dffcdbf826 tw-cef5b893cf" : "tw-16720c5987 tw-1852007365"
                 }`}
               >
-                <LayoutGrid className="w-4 h-4" /> Kanban
+                <LayoutGrid className="tw-dc7972ebf3 tw-11e59c6d5f" /> Kanban
               </button>
               <button
                 onClick={() => setActiveTab('timer')}
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all ${
-                  activeTab === 'timer' ? 'bg-brand text-text-inverse shadow-xs' : 'text-text-secondary hover:text-text-primary'
+                className={`tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90 tw-f0faeb26d6 tw-03b4dd7f17 tw-359090c2d5 tw-7fbb85697d tw-a217b4eaa9 tw-0fe7d7d814 ${
+                  activeTab === "timer" ? "tw-da1032643a tw-dffcdbf826 tw-cef5b893cf" : "tw-16720c5987 tw-1852007365"
                 }`}
               >
-                <Timer className="w-4 h-4" /> Таймер
+                <Timer className="tw-dc7972ebf3 tw-11e59c6d5f" /> Таймер
               </button>
             </div>
           </div>
         </header>
 
-        {errorMessage && <p role="alert" className="text-sm font-semibold text-red-700">{errorMessage}</p>}
+        {errorMessage && <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">{errorMessage}</p>}
         {typeof (location.state as { importedCount?: unknown } | null)?.importedCount === 'number' && (
-          <p role="status" className="text-sm font-semibold text-text-secondary">
+          <p role="status" className="tw-fc7473ca09 tw-e83a7042bc tw-16720c5987">
             {(location.state as { importedCount: number }).importedCount > 0
               ? `Добавлено задач из Roadmap: ${(location.state as { importedCount: number }).importedCount}`
               : 'Задачи этого этапа уже есть в Kanban'}
@@ -281,43 +283,43 @@ export const KanbanBoard: React.FC = () => {
 
         {/* Модальное окно создания задачи */}
         {isTaskModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-            <div className="bg-bg-surface border border-border rounded-3xl p-6 max-w-md w-full shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="text-base font-black text-text-primary">Добавить новую задачу</h3>
-                <button onClick={() => setIsTaskModalOpen(false)} className="text-text-secondary hover:text-text-primary font-bold">✕</button>
+          <div className="tw-7bc555991d tw-7b7df0449b tw-181b286668 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-fd9dca32f4 tw-1839ae9d4d tw-8e63407b5c">
+            <div className="tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-ea189a088a tw-0478c89a15 tw-9794ab4509 tw-6da6a3c3f7 tw-a739868a85 tw-3e7ce58d64">
+              <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-65fdbade20 tw-18049387f0 tw-7fcf9124b5">
+                <h3 className="tw-4ee734926f tw-7fbb85697d tw-5358eecb47">Добавить новую задачу</h3>
+                <button onClick={() => setIsTaskModalOpen(false)} className="tw-16720c5987 tw-1852007365 tw-69450ef148">✕</button>
               </div>
 
-              <form onSubmit={handleCreateTask} className="space-y-4">
+              <form onSubmit={handleCreateTask} className="tw-3e7ce58d64">
                 <div>
-                  <label className="text-xs font-bold text-text-secondary block mb-1">Название задачи</label>
+                  <label className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-0214b4b355 tw-65281709da">Название задачи</label>
                   <input
                     type="text"
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
                     placeholder="Например: Настроить CI/CD пайплайн"
-                    className="w-full rounded-xl border border-border bg-bg-primary px-3.5 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none"
+                    className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-e0d9cc7f06 tw-e7ee55ac7f tw-359090c2d5 tw-5358eecb47 tw-68308c6db2 tw-55d048ebfb"
                     required
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="tw-f3c543ad5f tw-8e75e3db48 tw-1004c0c395">
                   <div>
-                    <label className="text-xs font-bold text-text-secondary block mb-1">Длительность</label>
+                    <label className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-0214b4b355 tw-65281709da">Длительность</label>
                     <input
                       type="text"
                       value={newTaskDuration}
                       onChange={(e) => setNewTaskDuration(e.target.value)}
                       placeholder="2 часа"
-                      className="w-full rounded-xl border border-border bg-bg-primary px-3.5 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none"
+                      className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-e0d9cc7f06 tw-e7ee55ac7f tw-359090c2d5 tw-5358eecb47 tw-68308c6db2 tw-55d048ebfb"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-text-secondary block mb-1">Тип</label>
+                    <label className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-0214b4b355 tw-65281709da">Тип</label>
                     <select
                       value={newTaskType}
                       onChange={(e) => setNewTaskType(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-bg-primary px-3 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none"
+                      className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-0e17f2bd90 tw-e7ee55ac7f tw-359090c2d5 tw-5358eecb47 tw-68308c6db2 tw-55d048ebfb"
                     >
                       <option value="development">Development</option>
                       <option value="backend">Backend</option>
@@ -328,26 +330,26 @@ export const KanbanBoard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-text-secondary block mb-1">Микрошаги (каждый с новой строки)</label>
+                  <label className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-0214b4b355 tw-65281709da">Микрошаги (каждый с новой строки)</label>
                   <textarea
                     rows={4}
                     value={newTaskMicroSteps}
                     onChange={(e) => setNewTaskMicroSteps(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-bg-primary px-3.5 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none resize-none"
+                    className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-e0d9cc7f06 tw-e7ee55ac7f tw-359090c2d5 tw-5358eecb47 tw-68308c6db2 tw-55d048ebfb tw-6aef320168"
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="tw-60fbb77139 tw-77c08e015d tw-77a2a20e90 tw-f46b61a9b3">
                   <button
                     type="button"
                     onClick={() => setIsTaskModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-text-secondary hover:text-text-primary"
+                    className="tw-f0faeb26d6 tw-03b4dd7f17 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-1852007365"
                   >
                     Отмена
                   </button>
                   <button
                     type="submit"
-                    className="landing__primary-button px-5 py-2 text-xs"
+                    className="landing__primary-button tw-d139dd09e3 tw-03b4dd7f17 tw-359090c2d5"
                   >
                     Создать задачу
                   </button>
@@ -359,10 +361,10 @@ export const KanbanBoard: React.FC = () => {
 
         {/* Основной контент */}
         {activeTab === 'kanban' ? isLoadingTasks ? (
-          <div className="flex min-h-60 items-center justify-center text-sm font-semibold text-text-secondary">Загружаем задачи...</div>
+          <div className="tw-60fbb77139 tw-07f663aa26 tw-3960ffc248 tw-86843cf1e2 tw-fc7473ca09 tw-e83a7042bc tw-16720c5987">Загружаем задачи...</div>
         ) : (
           /* Kanban Доска */
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          <div className="tw-f3c543ad5f tw-d7c8339810 tw-9a638cfe82 tw-0d304f904c tw-60541e1e26">
             {COLUMNS.map((col) => {
               const columnTasks = tasks.filter((task) => task.status === col.id);
 
@@ -371,50 +373,50 @@ export const KanbanBoard: React.FC = () => {
                   key={col.id}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col.id)}
-                  className="bg-bg-surface border border-border rounded-3xl p-5 flex flex-col min-h-[540px] shadow-2xs"
+                  className="tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-ea189a088a tw-c07e54fd14 tw-60fbb77139 tw-8dddea0773 tw-b2fe516767 tw-ea11cab451"
                 >
-                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-border">
-                    <span className="text-xs font-black uppercase tracking-wider text-text-secondary">
+                  <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-7fcf9124b5 tw-da019856f2 tw-65fdbade20 tw-18049387f0">
+                    <span className="tw-359090c2d5 tw-7fbb85697d tw-117ec720ea tw-09ace3a4d9 tw-16720c5987">
                       {col.title}
                     </span>
-                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-bg-primary border border-border text-brand">
+                    <span className="tw-359090c2d5 tw-69450ef148 tw-0b91436deb tw-465609a240 tw-ac204c1088 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-17d820623e">
                       {columnTasks.length}
                     </span>
                   </div>
 
-                  <div className="space-y-4 flex-1">
+                  <div className="tw-3e7ce58d64 tw-36e579c0b4">
                     {columnTasks.map((task) => (
                       <div
                         key={task.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, task.id)}
-                        className="bg-bg-primary border border-border rounded-2xl p-4 shadow-2xs cursor-grab active:cursor-grabbing hover:border-brand/60 transition-all space-y-3"
+                        className="tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-68f2db624d tw-8e63407b5c tw-ea11cab451 tw-8d08385288 tw-d9bff91ef7 tw-99235827a9 tw-0fe7d7d814 tw-6ed543e2fb"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-sm font-black text-text-primary leading-snug">
+                        <div className="tw-60fbb77139 tw-60541e1e26 tw-8ef2268efb tw-77a2a20e90">
+                          <h3 className="tw-fc7473ca09 tw-7fbb85697d tw-5358eecb47 tw-e25ca6535d">
                             {task.title}
                           </h3>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand-light text-brand shrink-0">
+                          <span className="tw-1dc571a360 tw-69450ef148 tw-d5eab218aa tw-465609a240 tw-07389a777c tw-84c2118f8b tw-17d820623e tw-012fbd121f">
                             {task.duration}
                           </span>
                         </div>
 
-                        <div className="space-y-2 pt-2 border-t border-border/80">
-                          <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider block">
+                        <div className="tw-6f7e013d64 tw-f46b61a9b3 tw-b950dda299 tw-c9ed8c5f79">
+                          <span className="tw-1dc571a360 tw-69450ef148 tw-16720c5987 tw-117ec720ea tw-09ace3a4d9 tw-0214b4b355">
                             Микрошаги:
                           </span>
                           {task.micro_steps.map((micro) => (
                             <div
                               key={micro.id}
-                              className="flex items-center justify-between gap-2 p-2 rounded-xl bg-bg-surface border border-border text-xs"
+                              className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-77a2a20e90 tw-7660b45090 tw-a217b4eaa9 tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-359090c2d5"
                             >
-                              <div className="flex items-center gap-2 min-w-0">
+                              <div className="tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90 tw-7e0b7cdf1a">
                                 {micro.completed ? (
-                                  <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
+                                  <CheckCircle2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e tw-012fbd121f" />
                                 ) : (
-                                  <Circle className="w-4 h-4 text-text-secondary shrink-0" />
+                                  <Circle className="tw-dc7972ebf3 tw-11e59c6d5f tw-16720c5987 tw-012fbd121f" />
                                 )}
-                                <span className={`truncate ${micro.completed ? 'line-through text-text-secondary' : 'font-semibold text-text-primary'}`}>
+                                <span className={`tw-f283ea9bea ${micro.completed ? "tw-093ca5623c tw-16720c5987" : "tw-e83a7042bc tw-5358eecb47"}`}>
                                   {micro.title}
                                 </span>
                               </div>
@@ -422,9 +424,9 @@ export const KanbanBoard: React.FC = () => {
                               {!micro.completed && (
                                 <button
                                   onClick={() => startTimerForMicroStep(task, micro)}
-                                  className="px-2 py-1 rounded-lg bg-brand text-text-inverse hover:bg-brand-hover transition-colors shrink-0 text-[10px] font-bold flex items-center gap-1"
+                                  className="tw-d5eab218aa tw-660d2effb8 tw-5f22e64f22 tw-da1032643a tw-dffcdbf826 tw-6dc89721e0 tw-ceb69a6b0e tw-012fbd121f tw-1dc571a360 tw-69450ef148 tw-60fbb77139 tw-3960ffc248 tw-44ee8ba0a4"
                                 >
-                                  <Play className="w-2.5 h-2.5 fill-current" /> Старт
+                                  <Play className="tw-650758f457 tw-9b3d0721b6 tw-20269b6b37" /> Старт
                                 </button>
                               )}
                             </div>
@@ -434,7 +436,7 @@ export const KanbanBoard: React.FC = () => {
                     ))}
 
                     {columnTasks.length === 0 && (
-                      <div className="h-40 flex items-center justify-center text-xs text-text-secondary/60 border-2 border-dashed border-border rounded-2xl">
+                      <div className="tw-aadad6871a tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-359090c2d5 tw-b9651dc646 tw-65935df577 tw-a29b7a649c tw-18049387f0 tw-68f2db624d">
                         Перетащите карточку сюда
                       </div>
                     )}
@@ -445,32 +447,32 @@ export const KanbanBoard: React.FC = () => {
           </div>
         ) : (
           /* РАЗДЕЛИМ НА ДВЕ ПЛАШКИ: СЛЕВА ТЕКСТ, СПРАВА ГИГАНТСКИЙ ТАЙМЕР */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+          <div className="tw-f3c543ad5f tw-d7c8339810 tw-6f0825385d tw-1500488ab7 tw-a13d486c14">
             
             {/* Левая плашка: Информация о задаче и микрошаге */}
-            <div className="lg:col-span-6 bg-bg-surface border border-border rounded-3xl p-8 shadow-xl flex flex-col justify-between space-y-6">
+            <div className="tw-31d80d2964 tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-ea189a088a tw-845f53365c tw-a739868a85 tw-60fbb77139 tw-8dddea0773 tw-8ef2268efb tw-b3542e0588">
               {activeMicroStep ? (
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-light text-brand text-xs font-black uppercase tracking-wider">
-                    <Flame className="w-4 h-4" /> Активный фокус
+                <div className="tw-3e7ce58d64">
+                  <div className="tw-52083e7da4 tw-3960ffc248 tw-58284b4ea5 tw-0e17f2bd90 tw-660d2effb8 tw-ac204c1088 tw-84c2118f8b tw-17d820623e tw-359090c2d5 tw-7fbb85697d tw-117ec720ea tw-09ace3a4d9">
+                    <Flame className="tw-dc7972ebf3 tw-11e59c6d5f" /> Активный фокус
                   </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">Микрошаг</span>
-                    <h2 className="text-2xl font-black text-text-primary leading-tight">{activeMicroStep.title}</h2>
+                  <div className="tw-6f7e013d64">
+                    <span className="tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987">Микрошаг</span>
+                    <h2 className="tw-3febee094e tw-7fbb85697d tw-5358eecb47 tw-e9fadafbd4">{activeMicroStep.title}</h2>
                   </div>
-                  <div className="space-y-1 pt-4 border-t border-border">
-                    <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">Родительская задача</span>
-                    <p className="text-base font-bold text-text-primary">{activeTask?.title}</p>
-                    <p className="text-xs text-text-secondary">Длительность: {activeTask?.duration}</p>
+                  <div className="tw-da7c36cd88 tw-173fa8f067 tw-b950dda299 tw-18049387f0">
+                    <span className="tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987">Родительская задача</span>
+                    <p className="tw-4ee734926f tw-69450ef148 tw-5358eecb47">{activeTask?.title}</p>
+                    <p className="tw-359090c2d5 tw-16720c5987">Длительность: {activeTask?.duration}</p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3 my-auto text-center py-12">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-text-secondary block">
+                <div className="tw-6ed543e2fb tw-705e7c2001 tw-ca6bf63030 tw-61357c0c2f">
+                  <span className="tw-359090c2d5 tw-0ce2a7f443 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-0214b4b355">
                     Ожидание фокуса
                   </span>
-                  <h2 className="text-2xl font-black text-text-primary">Микрошаг не выбран</h2>
-                  <p className="text-sm text-text-secondary max-w-sm mx-auto">
+                  <h2 className="tw-3febee094e tw-7fbb85697d tw-5358eecb47">Микрошаг не выбран</h2>
+                  <p className="tw-fc7473ca09 tw-16720c5987 tw-2472e9b81a tw-0e12dc7de9">
                     Перейдите на Kanban-доску и нажмите «Старт» на любом микрошаге задачи, чтобы запустить сессию.
                   </p>
                 </div>
@@ -479,23 +481,23 @@ export const KanbanBoard: React.FC = () => {
               {activeMicroStep && (
                 <button
                   onClick={stopTimerAndSave}
-                  className="landing__primary-button w-full py-3.5 text-sm flex items-center justify-center gap-2 shadow-md"
+                  className="landing__primary-button tw-6da6a3c3f7 tw-69e76918fe tw-fc7473ca09 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-77a2a20e90 tw-febc34e471"
                 >
-                  <Check className="w-5 h-5" /> Завершить микрошаг
+                  <Check className="tw-72470489ff tw-cd0d9c512c" /> Завершить микрошаг
                 </button>
               )}
             </div>
 
             {/* Правая плашка: Гигантский круглый таймер и управление */}
-            <div className="lg:col-span-6 bg-bg-surface border border-border rounded-3xl p-8 shadow-xl flex flex-col items-center justify-center text-center space-y-6">
+            <div className="tw-31d80d2964 tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-ea189a088a tw-845f53365c tw-a739868a85 tw-60fbb77139 tw-8dddea0773 tw-3960ffc248 tw-86843cf1e2 tw-ca6bf63030 tw-b3542e0588">
               
-              <div className="relative flex items-center justify-center">
-                <svg className="w-72 h-72 transform -rotate-90">
+              <div className="tw-d89972fe17 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2">
+                <svg className="tw-92e13d146f tw-ff4a6777f1 tw-dd8ce13ad1 tw-31c8b9f7c5">
                   <circle
                     cx="144"
                     cy="144"
                     r={circleRadius}
-                    className="stroke-bg-primary"
+                    className="tw-7756a63f45"
                     strokeWidth="16"
                     fill="transparent"
                   />
@@ -503,7 +505,7 @@ export const KanbanBoard: React.FC = () => {
                     cx="144"
                     cy="144"
                     r={circleRadius}
-                    className="stroke-brand transition-all duration-500"
+                    className="tw-792e0e4de8 tw-0fe7d7d814 tw-844322115e"
                     strokeWidth="16"
                     strokeDasharray={circleCircumference}
                     strokeDashoffset={strokeDashoffset}
@@ -511,55 +513,55 @@ export const KanbanBoard: React.FC = () => {
                     fill="transparent"
                   />
                 </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-6xl font-black text-text-primary font-mono tracking-tighter">
+                <div className="tw-da4dbfbc4f tw-60fbb77139 tw-8dddea0773 tw-3960ffc248 tw-86843cf1e2 tw-ca6bf63030">
+                  <span className="tw-0f9d55973b tw-7fbb85697d tw-5358eecb47 tw-0e65706bcc tw-59eb8729d4">
                     {formatTime(secondsElapsed)}
                   </span>
-                  <span className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-2">
+                  <span className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-117ec720ea tw-09ace3a4d9 tw-50d0d216a2">
                     цель: {Math.round(targetSeconds / 60)} мин
                   </span>
                 </div>
               </div>
 
               {/* Панель регуляции времени */}
-              <div className="flex items-center justify-center gap-3 w-full">
+              <div className="tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-1004c0c395 tw-6da6a3c3f7">
                 <button 
                   onClick={() => adjustTime(-5)} 
-                  className="px-4 py-2 bg-bg-primary border border-border rounded-xl text-xs font-bold text-text-secondary hover:text-text-primary"
+                  className="tw-f0faeb26d6 tw-03b4dd7f17 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-a217b4eaa9 tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-1852007365"
                 >
                   -5 мин
                 </button>
                 <button 
                   onClick={() => adjustTime(5)} 
-                  className="px-4 py-2 bg-bg-primary border border-border rounded-xl text-xs font-bold text-text-secondary hover:text-text-primary"
+                  className="tw-f0faeb26d6 tw-03b4dd7f17 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-a217b4eaa9 tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-1852007365"
                 >
                   +5 мин
                 </button>
                 {isTimerRunning ? (
                   <button
                     onClick={() => setIsTimerRunning(false)}
-                    className="p-2.5 bg-bg-primary border border-border rounded-xl text-text-primary hover:bg-bg-secondary"
+                    className="tw-9fe52d5d50 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-a217b4eaa9 tw-5358eecb47 tw-bc13c00cab"
                     title="Пауза"
                   >
-                    <Pause className="w-5 h-5" />
+                    <Pause className="tw-72470489ff tw-cd0d9c512c" />
                   </button>
                 ) : (
                   activeMicroStep && (
                     <button
                       onClick={() => setIsTimerRunning(true)}
-                      className="p-2.5 bg-brand text-text-inverse rounded-xl hover:bg-brand-hover"
+                      className="tw-9fe52d5d50 tw-da1032643a tw-dffcdbf826 tw-a217b4eaa9 tw-6dc89721e0"
                       title="Продолжить"
                     >
-                      <Play className="w-5 h-5 fill-current" />
+                      <Play className="tw-72470489ff tw-cd0d9c512c tw-20269b6b37" />
                     </button>
                   )
                 )}
                 <button
                   onClick={resetTimer}
-                  className="p-2.5 bg-bg-primary border border-border rounded-xl text-text-secondary hover:text-text-primary"
+                  className="tw-9fe52d5d50 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-a217b4eaa9 tw-16720c5987 tw-1852007365"
                   title="Сбросить"
                 >
-                  <RotateCcw className="w-5 h-5" />
+                  <RotateCcw className="tw-72470489ff tw-cd0d9c512c" />
                 </button>
               </div>
 

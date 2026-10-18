@@ -1,0 +1,31 @@
+@reference "./index.css";
+
+.tw-0214b4b355 { @apply block; }
+.tw-0ab8667228 { @apply mt-4; }
+.tw-1004c0c395 { @apply gap-3; }
+.tw-16720c5987 { @apply text-text-secondary; }
+.tw-170cee3ff4 { @apply break-words; }
+.tw-17d820623e { @apply text-brand; }
+.tw-18049387f0 { @apply border-border; }
+.tw-1eb5c6df38 { @apply flex-wrap; }
+.tw-50d0d216a2 { @apply mt-2; }
+.tw-5aae0fc8f2 { @apply self-start; }
+.tw-60fbb77139 { @apply flex; }
+.tw-69450ef148 { @apply font-bold; }
+.tw-6a2c73aab2 { @apply bg-bg-primary; }
+.tw-6da6a3c3f7 { @apply w-full; }
+.tw-6ed543e2fb { @apply space-y-3; }
+.tw-751fb0d102 { @apply text-3xl; }
+.tw-77a2a20e90 { @apply gap-2; }
+.tw-793346c736 { @apply min-h-screen; }
+.tw-7fbb85697d { @apply font-black; }
+.tw-8ecebc9f80 { @apply font-normal; }
+.tw-9d6de46b29 { @apply my-4; }
+.tw-a217b4eaa9 { @apply rounded-xl; }
+.tw-a2edcb1a3a { @apply whitespace-pre-wrap; }
+.tw-b3542e0588 { @apply space-y-6; }
+.tw-b39e60c339 { @apply gap-5; }
+.tw-c82b67c88e { @apply underline; }
+.tw-ca6bcd4b6f { @apply border; }
+.tw-eb6e8b881a { @apply p-3; }
+.tw-eccd13ef4f { @apply mt-3; }

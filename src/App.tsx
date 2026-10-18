@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import './App.css'
 import Landing from './pages/Landing'
 import { Navbar } from './components/Navbar'
 import { Auth } from './pages/Auth'
@@ -12,6 +11,7 @@ import Roadmap from './pages/Roadmap'
 import Mentorslist from './pages/Mentorslist.tsx' 
 import Analytics from './pages/Analytics'
 import KanbanBoard from './pages/Kanban'
+import './styles/App.css'
 
 function ScrollToLocation() {
   const location = useLocation()
@@ -39,9 +39,9 @@ function PublicLayout() {
 
 function ProtectedRoute({ children, role }: { children: ReactNode; role?: 'student' | 'mentor' }) {
   const { user, loading, error } = useSession()
-  if (loading) return <p className="pt-28 text-center" role="status">Загрузка аккаунта…</p>
+  if (loading) return <p className="route-status" role="status">Загрузка аккаунта…</p>
   if (!user) return error && localStorage.getItem('access_token')
-    ? <div className="pt-28 text-center" role="alert">{error}<button onClick={() => window.location.reload()}>Повторить</button></div>
+    ? <div className="route-status route-status--error" role="alert">{error}<button className="route-retry" onClick={() => window.location.reload()}>Повторить</button></div>
     : <Navigate to="/login" replace />
   if (role && user.role !== role) return <Navigate to={user.role === 'mentor' ? '/requests' : '/mentorslist'} replace />
   return children

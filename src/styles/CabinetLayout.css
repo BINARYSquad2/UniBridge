@@ -1,0 +1,20 @@
+.cabinet-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 112px 32px 64px;
+}
+
+.cabinet-content {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .cabinet-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding: 100px 16px 40px;
+  }
+}
