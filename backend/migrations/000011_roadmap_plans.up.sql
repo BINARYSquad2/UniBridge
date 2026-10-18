@@ -1,4 +1,4 @@
-CREATE TABLE roadmap_plans (
+CREATE TABLE IF NOT EXISTS roadmap_plans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_profile_id UUID NOT NULL REFERENCES student_profiles(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -16,14 +16,14 @@ CREATE TABLE roadmap_plans (
     CHECK (start_grade <= end_grade)
 );
 
-CREATE INDEX idx_roadmap_plans_student_created
+CREATE INDEX IF NOT EXISTS idx_roadmap_plans_student_created
     ON roadmap_plans (student_profile_id, created_at DESC);
 
-CREATE UNIQUE INDEX idx_roadmap_plans_one_active_per_student
+CREATE UNIQUE INDEX IF NOT EXISTS idx_roadmap_plans_one_active_per_student
     ON roadmap_plans (student_profile_id)
     WHERE is_active;
 
-CREATE TABLE roadmap_steps (
+CREATE TABLE IF NOT EXISTS roadmap_steps (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     roadmap_plan_id UUID NOT NULL REFERENCES roadmap_plans(id) ON DELETE CASCADE,
     source_id VARCHAR(100) NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE roadmap_steps (
     UNIQUE (roadmap_plan_id, position)
 );
 
-CREATE TABLE roadmap_tasks (
+CREATE TABLE IF NOT EXISTS roadmap_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     roadmap_step_id UUID NOT NULL REFERENCES roadmap_steps(id) ON DELETE CASCADE,
     source_id VARCHAR(100) NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE roadmap_tasks (
     CHECK ((completed AND completed_at IS NOT NULL) OR (NOT completed AND completed_at IS NULL))
 );
 
-CREATE TABLE roadmap_artifacts (
+CREATE TABLE IF NOT EXISTS roadmap_artifacts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     roadmap_step_id UUID NOT NULL REFERENCES roadmap_steps(id) ON DELETE CASCADE,
     position SMALLINT NOT NULL CHECK (position > 0),
@@ -65,10 +65,28 @@ CREATE TABLE roadmap_artifacts (
     UNIQUE (roadmap_step_id, position)
 );
 
-CREATE TRIGGER update_roadmap_plans_updated_at
-    BEFORE UPDATE ON roadmap_plans
-    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_roadmap_plans_updated_at'
+          AND tgrelid = 'roadmap_plans'::regclass
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER update_roadmap_plans_updated_at
+            BEFORE UPDATE ON roadmap_plans
+            FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+    END IF;
 
-CREATE TRIGGER update_roadmap_tasks_updated_at
-    BEFORE UPDATE ON roadmap_tasks
-    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_roadmap_tasks_updated_at'
+          AND tgrelid = 'roadmap_tasks'::regclass
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER update_roadmap_tasks_updated_at
+            BEFORE UPDATE ON roadmap_tasks
+            FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+    END IF;
+END
+$$;

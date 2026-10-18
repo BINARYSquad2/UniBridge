@@ -1,4 +1,3 @@
-import { useSession } from '../lib/session';
 import { CabinetNav } from '../components/CabinetNav';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -161,17 +160,97 @@ useEffect(() => {
     );
   }
 
-  if (profile?.role !== 'student') {
+  if (profile?.role === 'mentor') {
     return (
-      <main className="landing__container min-h-screen pt-28">
-        <section className="landing__feature-card space-y-3">
-          <h1 className="landing__feature-title">Профиль ученика</h1>
-          <p className="landing__feature-description">
-            {profile?.full_name}, раздел с классом, интересами и учебным планом доступен для аккаунтов ученика.
-          </p>
-        </section>
-      </main>
+      <div className="landing-page min-h-screen">
+        <div className="cabinet-layout">
+          <CabinetNav />
+
+          <main className="cabinet-content">
+            <header className="profile-heading">
+              <span className="landing__section-label">Личный кабинет</span>
+              <h1 className="landing__section-title mt-3">Мой профиль</h1>
+              <p className="text-text-secondary mt-4">
+                Информация о вас и вашей работе на платформе.
+              </p>
+            </header>
+
+            <section className="profile-card profile-summary" aria-labelledby="profile-name">
+              <div className="profile-avatar-large" aria-hidden="true">
+                {profile.full_name.slice(0, 1).toUpperCase()}
+              </div>
+
+              <div className="profile-summary-info">
+                <span className="landing__section-label">Ментор</span>
+                <h2 id="profile-name">{profile.full_name}</h2>
+                <p>{profile.email}</p>
+              </div>
+            </section>
+
+            <section className="profile-card">
+              <h2>Основная информация</h2>
+
+              <dl className="profile-details">
+                <div>
+                  <dt>Имя и фамилия</dt>
+                  <dd>{profile.full_name}</dd>
+                </div>
+                <div>
+                  <dt>Электронная почта</dt>
+                  <dd>{profile.email}</dd>
+                </div>
+                <div>
+                  <dt>Роль на платформе</dt>
+                  <dd>Ментор</dd>
+                </div>
+                <div>
+                  <dt>Город</dt>
+                  <dd className="profile-muted">Не указан</dd>
+                </div>
+              </dl>
+            </section>
+
+            <div className="profile-sections">
+              <section className="profile-card">
+                <h2>О себе</h2>
+                <div className="profile-empty">
+                  <p>Описание пока не добавлено</p>
+                  <span>Здесь будет информация об опыте ментора.</span>
+                </div>
+              </section>
+
+              <section className="profile-card">
+                <h2>Образование</h2>
+                <div className="profile-empty">
+                  <p>Образование пока не указано</p>
+                  <span>Учебное заведение и специальность.</span>
+                </div>
+              </section>
+
+              <section className="profile-card">
+                <h2>Направления менторства</h2>
+                <div className="profile-empty">
+                  <p>Направления пока не добавлены</p>
+                  <span>Предметы и темы, с которыми помогает ментор.</span>
+                </div>
+              </section>
+
+              <section className="profile-card">
+                <h2>Опыт и достижения</h2>
+                <div className="profile-empty">
+                  <p>Информация пока не добавлена</p>
+                  <span>Проекты, профессиональный опыт и достижения.</span>
+                </div>
+              </section>
+            </div>
+          </main>
+        </div>
+      </div>
     );
+  }
+
+  if (profile?.role !== 'student') {
+    return <main className="landing__container min-h-screen pt-28">Профиль не найден.</main>;
   }
 
   const student = profile.student_profile;

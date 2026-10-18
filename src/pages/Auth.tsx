@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSession } from '../lib/session';
+import { useSession, type User } from '../lib/session';
 import { useNavigate } from 'react-router-dom';
 
 type AuthMode = 'login' | 'register';
@@ -176,8 +176,10 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
       }
 
       // Проверка наличия access_token
-      const result = responseBody ? JSON.parse(responseBody) as { access_token?: string } : null;
-        if (!result || typeof result !== 'object' || !result.access_token) {
+      const result = responseBody
+        ? JSON.parse(responseBody) as { access_token?: string; user?: User }
+        : null;
+      if (!result || typeof result !== 'object' || !result.access_token || !result.user) {
           if (endpoint === 'login') {
             throw new Error('Неверный email или пароль');
           }
@@ -257,7 +259,6 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             <div className="h-1.5 w-full bg-bg-primary rounded-full overflow-hidden">
               <div
                 className="h-full bg-brand transition-all duration-300"
-                style={{ width: `${(step / 6) * 100}%` }}
                 style={{ width: `${(step / 6) * 100}%` }}
               />
             </div>

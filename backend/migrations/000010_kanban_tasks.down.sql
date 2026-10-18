@@ -1,1 +1,1 @@
-DROP TABLE kanban_tasks;
+DROP TABLE IF EXISTS kanban_tasks;

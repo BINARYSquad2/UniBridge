@@ -13,7 +13,7 @@ import {
   Target,
   Brain
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+
 export default function Landing() {
   const { user } = useSession();
   const catalog = user?.role === 'mentor' ? '/requests' : '/mentorslist';
@@ -96,7 +96,7 @@ export default function Landing() {
           </div>
 
           <div className="landing__features-grid">
-            
+
             {/* Feature 1 (Пункт 5) */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">

@@ -1,7 +1,7 @@
-import { useSession } from '../lib/session';
 import { useEffect, useState } from 'react';
-import { LogOut, Menu, X, GraduationCap} from 'lucide-react';
+import { LogOut, Menu, X, GraduationCap } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useSession } from '../lib/session';
 
 const NAV_LINKS = [
   { label: 'Возможности', to: '/#features' },
@@ -10,7 +10,7 @@ const NAV_LINKS = [
 ];
 
 export const Navbar: React.FC = () => {
-  const { user, logout } = useSession();
+  const { logout } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -40,7 +40,7 @@ export const Navbar: React.FC = () => {
   }, [location.pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
+    logout();
     setIsAuthenticated(false);
     setIsMobileMenuOpen(false);
     navigate('/');
@@ -50,16 +50,14 @@ export const Navbar: React.FC = () => {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
-        isScrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${isScrolled
           ? 'bg-bg-surface/90 backdrop-blur-md border-b border-border shadow-sm'
           : 'bg-transparent border-b border-transparent'
-      }`}
+        }`}
     >
       <div
-        className={`mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-[height] duration-300 ${
-          isScrolled ? 'h-16' : 'h-20'
-        }`}
+        className={`mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-[height] duration-300 ${isScrolled ? 'h-16' : 'h-20'
+          }`}
       >
         {/* Логотип */}
         <Link to="/#main" className="flex items-center gap-3 group shrink-0">
@@ -117,13 +115,8 @@ export const Navbar: React.FC = () => {
             >
               Авторизация
             </Link>
-            <Link
-              to="/register"
-              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-95"
-            >
-              Начать бесплатно
-            </Link>
-          </div>
+
+          )}</div>
 
         {/* Мобильная кнопка меню */}
         <button

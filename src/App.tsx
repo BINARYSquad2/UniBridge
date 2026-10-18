@@ -37,21 +37,6 @@ function PublicLayout() {
   )
 }
 
-function hasActiveJWT(): boolean {
-  const token = localStorage.getItem('access_token')
-  if (!token) return false
-
-  const parts = token.split('.')
-  if (parts.length !== 3) return false
-
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number }
-    return typeof payload.exp === 'number' && payload.exp > Date.now() / 1000
-  } catch {
-    return false
-  }
-}
-
 function ProtectedRoute({ children, role }: { children: ReactNode; role?: 'student' | 'mentor' }) {
   const { user, loading, error } = useSession()
   if (loading) return <p className="pt-28 text-center" role="status">Загрузка аккаунта…</p>

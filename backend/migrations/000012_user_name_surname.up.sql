@@ -1,6 +1,6 @@
 ALTER TABLE users
-    ADD COLUMN name VARCHAR(128),
-    ADD COLUMN surname VARCHAR(128);
+    ADD COLUMN IF NOT EXISTS name VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS surname VARCHAR(128);
 
 UPDATE users
 SET name = split_part(trim(full_name), ' ', 1),
