@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/session'
 import { statuses } from './Requests'
 import type { Request } from './Requests'
+import { SUBJECT_DIRECTIONS } from '../lib/subjectDirections'
 type Mentor = { id: string; full_name: string; bio: string; subjects: string[]; matches: number }
 export default function Mentorslist() {
   const [mentors, setMentors] = useState<Mentor[]>([])
@@ -19,6 +20,7 @@ export default function Mentorslist() {
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState('')
   const [onlyMatches, setOnlyMatches] = useState(false)
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   useEffect(() => {
     const controller = new AbortController()
     Promise.all([api<Mentor[]>('/mentors', { signal: controller.signal }), api<Request[]>('/mentorship/requests', { signal: controller.signal })])
@@ -37,15 +39,36 @@ export default function Mentorslist() {
       setRequests(await api<Request[]>('/mentorship/requests'))
     } catch (e) { setError(e instanceof Error ? e.message : 'Ошибка соединения') } finally { setBusy(false) }
   }
-  const shown = mentors.filter(m => !onlyMatches || m.matches > 0)
+  const toggleSubject = (subject: string) => {
+    setSelectedSubjects(current => current.includes(subject)
+      ? current.filter(item => item !== subject)
+      : [...current, subject])
+  }
+  const shown = mentors.filter(m =>
+    (!onlyMatches || m.matches > 0) &&
+    (!selectedSubjects.length || selectedSubjects.some(subject => m.subjects.includes(subject)))
+  )
   return <div className="landing-page tw-793346c736"><div className="cabinet-layout"><CabinetNav /><main className="cabinet-content tw-b3542e0588">
     <h1 className="tw-751fb0d102 tw-7fbb85697d">Подбор менторов</h1>
     <p className="tw-16720c5987">Сначала показаны менторы с наибольшим числом совпадений с вашими интересами.</p>
-    <div className="tw-60fbb77139 tw-1eb5c6df38 tw-b39e60c339"><label><input type="checkbox" checked={onlyMatches} onChange={e => setOnlyMatches(e.target.checked)} /> Только с совпадениями</label><Link to="/requests" className="tw-17d820623e tw-c82b67c88e">Мои заявки →</Link></div>
+    <section className="mentor-filters" aria-label="Фильтры менторов">
+      <div className="tw-60fbb77139 tw-1eb5c6df38 tw-b39e60c339"><label><input type="checkbox" checked={onlyMatches} onChange={e => setOnlyMatches(e.target.checked)} /> Только с совпадениями</label><Link to="/requests" className="tw-17d820623e tw-c82b67c88e">Мои заявки →</Link></div>
+      <fieldset className="mentor-subject-fieldset">
+        <legend className="mentor-filter-heading">Направления</legend>
+        <p className="tw-16720c5987">Показывать менторов, у которых есть хотя бы один выбранный тег.</p>
+        <div className="mentor-filter-tags">
+          {SUBJECT_DIRECTIONS.map(subject => <label key={subject} className="mentor-filter-tag">
+            <input type="checkbox" checked={selectedSubjects.includes(subject)} onChange={() => toggleSubject(subject)} />
+            {subject}
+          </label>)}
+        </div>
+        {!!selectedSubjects.length && <button type="button" className="mentor-filter-reset" onClick={() => setSelectedSubjects([])}>Сбросить направления</button>}
+      </fieldset>
+    </section>
     {error && <div role="alert">{error} <button onClick={() => window.location.reload()}>Обновить страницу</button></div>}
     {success && <p role="status">{success}</p>}
     {loading ? <p role="status">Загрузка менторов…</p> : <>
-      {!shown.length && !error && <div className="landing__feature-card">{mentors.length ? 'Совпадений пока нет. Снимите фильтр, чтобы посмотреть всех менторов.' : 'Менторов пока нет. Они появятся после регистрации.'}</div>}
+      {!shown.length && !error && <div className="landing__feature-card">{!mentors.length ? 'Менторов пока нет. Они появятся после регистрации.' : selectedSubjects.length ? 'По выбранным фильтрам менторы не найдены. Измените направления или снимите фильтры.' : 'Совпадений пока нет. Снимите фильтр, чтобы посмотреть всех менторов.'}</div>}
       <div className="catalog-grid">{shown.map(mentor => {
         const active = requests.find(r => r.mentor_id === mentor.id && ['pending', 'accepted'].includes(r.status))
         return <article key={mentor.id} className="landing__mentor-card catalog-card">

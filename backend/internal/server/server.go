@@ -39,9 +39,7 @@ func New(cfg config.Config, db *sql.DB) *http.Server {
 	mux.HandleFunc("POST /api/v1/roadmap/generate", roadmap.Generate)
 	mux.HandleFunc("GET /api/v1/roadmap/current", roadmap.Current)
 	mux.HandleFunc("PATCH /api/v1/roadmap/tasks/{taskID}", roadmap.UpdateTask)
-	mux.HandleFunc("POST /api/v1/roadmap/tasks/{taskID}/start", roadmap.StartTask)
 	mux.HandleFunc("POST /api/v1/roadmap/tasks/{taskID}/micro-steps", roadmap.CreateMicroStep)
-	mux.HandleFunc("POST /api/v1/roadmap/micro-steps/{microStepID}/start", roadmap.StartMicroStep)
 	mux.HandleFunc("PATCH /api/v1/roadmap/micro-steps/{microStepID}", roadmap.UpdateMicroStep)
 	mux.HandleFunc("GET /api/v1/roadmap/metrics", roadmap.Metrics)
 

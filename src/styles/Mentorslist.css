@@ -1,5 +1,113 @@
 @reference "./index.css";
 
+.mentor-filters {
+  @apply space-y-5 rounded-3xl border p-5 transition-colors;
+  background: color-mix(in srgb, var(--color-bg-surface) 68%, transparent);
+  border-color: color-mix(in srgb, var(--color-text-inverse) 78%, var(--color-border));
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.mentor-filters > div:first-child {
+  @apply items-center justify-between;
+}
+
+.mentor-filters > div:first-child > label,
+.mentor-filters > div:first-child > a {
+  @apply inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium no-underline transition-colors;
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-text-inverse) 78%, var(--color-border));
+  background: color-mix(in srgb, var(--color-bg-surface) 55%, transparent);
+}
+
+.mentor-filters > div:first-child > label:has(input:checked),
+.mentor-filters > div:first-child > a:hover {
+  color: var(--color-text-inverse);
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.mentor-filters > div:first-child > label input {
+  @apply accent-brand;
+}
+
+.mentor-subject-fieldset {
+  @apply space-y-3 border-0 p-0;
+  min-width: 0;
+}
+
+.mentor-filter-heading {
+  @apply px-1 font-bold text-text-primary;
+}
+
+.mentor-subject-fieldset > p {
+  @apply m-0 px-1 text-sm text-text-secondary;
+}
+
+.mentor-filter-tags {
+  @apply flex flex-wrap gap-2;
+}
+
+.mentor-filter-tag {
+  @apply inline-flex min-h-11 cursor-pointer items-center rounded-xl border px-4 py-2 text-sm font-medium transition-colors;
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-text-inverse) 78%, var(--color-border));
+  background: color-mix(in srgb, var(--color-bg-surface) 55%, transparent);
+}
+
+.mentor-filter-tag:hover {
+  border-color: var(--color-text-primary);
+}
+
+.mentor-filter-tag:has(input:checked) {
+  color: var(--color-text-inverse);
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-brand) 75%, transparent),
+    0 0 14px color-mix(in srgb, var(--color-brand) 72%, transparent),
+    0 0 28px color-mix(in srgb, var(--color-brand) 42%, transparent);
+}
+
+.mentor-filter-tag:has(input:checked):hover {
+  background: var(--color-brand-hover);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-brand-hover) 80%, transparent),
+    0 0 18px color-mix(in srgb, var(--color-brand) 85%, transparent),
+    0 0 34px color-mix(in srgb, var(--color-brand) 52%, transparent);
+}
+
+.mentor-filter-tag input {
+  @apply sr-only;
+}
+
+.mentor-filter-tag:has(input:focus-visible),
+.mentor-filters > div:first-child > label:has(input:focus-visible),
+.mentor-filters > div:first-child > a:focus-visible,
+.mentor-filter-reset:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-brand) 65%, transparent);
+  outline-offset: 3px;
+}
+
+.mentor-filter-reset {
+  @apply rounded-lg px-1 py-1 text-sm font-semibold underline underline-offset-4 transition-colors;
+  color: var(--color-text-secondary);
+}
+
+.mentor-filter-reset:hover {
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 640px) {
+  .mentor-filters {
+    @apply rounded-2xl p-4;
+  }
+
+  .mentor-filters > div:first-child {
+    @apply items-start;
+  }
+}
+
 .tw-0214b4b355 { @apply block; }
 .tw-0ab8667228 { @apply mt-4; }
 .tw-1004c0c395 { @apply gap-3; }

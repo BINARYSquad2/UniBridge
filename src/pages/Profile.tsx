@@ -2,6 +2,7 @@ import { CabinetNav } from '../components/CabinetNav';
 import '../styles/CabinetLayout.css';
 import '../styles/Landing.css';
 import '../styles/Profile.css';
+import '../styles/TaskTypeTag.css';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +10,6 @@ import {
   MapPin, 
   CheckCircle2, 
   Circle, 
-  Clock, 
   Star, 
   ChevronRight, 
   GraduationCap,
@@ -17,6 +17,7 @@ import {
   Sparkles,
   Target
 } from 'lucide-react';
+import { taskTypeLabel } from '../lib/taskTypes';
 
 type UserRole = 'student' | 'mentor';
 
@@ -39,7 +40,7 @@ interface CurrentProfile {
 interface RoadmapTask {
   id: string;
   title: string;
-  duration: string;
+  task_type: string;
   completed: boolean;
 }
 
@@ -63,7 +64,6 @@ interface CurrentRoadmap {
   end_grade: number;
   start_academic_year: string;
   end_academic_year: string;
-  weekly_hours: number;
   steps: RoadmapStep[];
 }
 
@@ -402,9 +402,12 @@ useEffect(() => {
                         ) : (
                           <Circle className="tw-cd0d9c512c tw-72470489ff tw-16720c5987 tw-012fbd121f tw-15e1b1f444" />
                         )}
-                        <span className={task.completed ? "tw-093ca5623c tw-16720c5987" : "tw-5358eecb47 tw-2689f39580"}>
-                          {task.title} <span className="tw-359090c2d5 tw-16720c5987">({task.duration})</span>
-                        </span>
+                        <div className="tw-36e579c0b4 tw-7e0b7cdf1a">
+                          <span className={task.completed ? "tw-093ca5623c tw-16720c5987" : "tw-5358eecb47 tw-2689f39580"}>
+                            {task.title}
+                          </span>
+                          <span className="task-type-tag">{taskTypeLabel(task.task_type)}</span>
+                        </div>
                       </div>
                     ))}
                     {step.artifacts.length > 0 && (
@@ -481,13 +484,11 @@ useEffect(() => {
                   >
                     <div className="tw-60fbb77139 tw-3960ffc248 tw-1004c0c395">
                       <Circle className="tw-11e59c6d5f tw-dc7972ebf3 tw-16720c5987 tw-012fbd121f" />
-                      <span className="tw-359090c2d5 tw-69450ef148 tw-5358eecb47">
-                        {task.title}
-                      </span>
+                      <div className="tw-36e579c0b4 tw-7e0b7cdf1a">
+                        <span className="tw-359090c2d5 tw-69450ef148 tw-5358eecb47">{task.title}</span>
+                        <span className="task-type-tag">{taskTypeLabel(task.task_type)}</span>
+                      </div>
                     </div>
-                    <span className="tw-1dc571a360 tw-e83a7042bc tw-17d820623e tw-60fbb77139 tw-3960ffc248 tw-44ee8ba0a4 tw-012fbd121f">
-                      <Clock className="tw-6a60c09e6a tw-9cea05671a" /> {task.duration}
-                    </span>
                   </div>
                 ))}
 

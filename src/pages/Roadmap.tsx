@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import '../styles/Roadmap.css';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Landing.css';
+import '../styles/TaskTypeTag.css';
 import { 
   CheckCircle2, 
   Circle, 
-  Clock, 
   Sparkles, 
   Target, 
   BookOpen, 
@@ -15,27 +15,21 @@ import {
   Loader2,
   Wand2,
   Plus,
-  Timer
+  X
 } from 'lucide-react';
+import { taskTypeLabel } from '../lib/taskTypes';
 
 interface MicroStep {
   id: string;
   title: string;
-  estimated_minutes?: number;
-  started_at?: string;
   completed: boolean;
-  actual_minutes?: number;
 }
 
 interface Task {
   id: string;
   title: string;
-  duration: string;
   task_type: string;
-  estimated_minutes?: number;
-  started_at?: string;
   completed: boolean;
-  actual_minutes?: number;
   micro_steps: MicroStep[];
 }
 
@@ -59,7 +53,6 @@ interface GeneratedRoadmap {
   end_grade: number;
   start_academic_year: string;
   end_academic_year: string;
-  weekly_hours: number;
   steps: RoadmapStep[];
 }
 
@@ -77,7 +70,7 @@ const INITIAL_STEPS: RoadmapStep[] = [
     impactScore: 50,
     artifacts: ['Draft Plan JSON'],
     tasks: [
-      { id: 't0', title: 'Нажать кнопку генерации плана выше', duration: '1 мин', task_type: 'other', completed: false, micro_steps: [] }
+      { id: 't0', title: 'Нажать кнопку генерации плана выше', task_type: 'other', completed: false, micro_steps: [] }
     ]
   }
 ];
@@ -91,13 +84,12 @@ export const Roadmap: React.FC = () => {
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedRoadmap | null>(null);
   const [preferences, setPreferences] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [updatingTaskID, setUpdatingTaskID] = useState<string | null>(null);
-  const [startingTaskID, setStartingTaskID] = useState<string | null>(null);
   const [updatingMicroStepID, setUpdatingMicroStepID] = useState<string | null>(null);
   const [creatingMicroStepFor, setCreatingMicroStepFor] = useState<string | null>(null);
   const [microStepTitle, setMicroStepTitle] = useState('');
-  const [microStepMinutes, setMicroStepMinutes] = useState('15');
 
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
@@ -158,7 +150,7 @@ export const Roadmap: React.FC = () => {
           },
           body: JSON.stringify({ completed }),
         });
-        const result = await response.json().catch(() => null) as { error?: string; actual_minutes?: number } | null;
+        const result = await response.json().catch(() => null) as { error?: string } | null;
         if (!response.ok) {
           throw new Error(result && 'error' in result ? result.error : 'Не удалось сохранить задачу');
         }
@@ -166,7 +158,7 @@ export const Roadmap: React.FC = () => {
           ? {
               ...item,
               tasks: item.tasks.map((currentTask) => currentTask.id === taskId
-                ? { ...currentTask, completed, started_at: completed ? currentTask.started_at : undefined, actual_minutes: result?.actual_minutes ?? currentTask.actual_minutes }
+                ? { ...currentTask, completed }
                 : currentTask),
               status,
             }
@@ -185,54 +177,6 @@ export const Roadmap: React.FC = () => {
       : item));
   };
 
-  const startTask = async (stepId: string, taskId: string) => {
-    if (startingTaskID) return;
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
-    setStartingTaskID(taskId);
-    setErrorMessage('');
-    try {
-      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}/start`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const result = await response.json().catch(() => null) as { started_at?: string; error?: string } | null;
-      if (!response.ok || !result?.started_at) throw new Error(result?.error ?? 'Не удалось запустить таймер');
-      setSteps((previous) => previous.map((step) => step.id === stepId
-        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId ? { ...task, started_at: result.started_at } : task) }
-        : step));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось запустить таймер');
-    } finally {
-      setStartingTaskID(null);
-    }
-  };
-
-  const startMicroStep = async (stepId: string, taskId: string, microStepId: string) => {
-    if (updatingMicroStepID) return;
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
-    setUpdatingMicroStepID(microStepId);
-    setErrorMessage('');
-    try {
-      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/micro-steps/${encodeURIComponent(microStepId)}/start`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const result = await response.json().catch(() => null) as { started_at?: string; error?: string } | null;
-      if (!response.ok || !result?.started_at) throw new Error(result?.error ?? 'Не удалось запустить микрошаг');
-      setSteps((previous) => previous.map((step) => step.id === stepId
-        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId
-            ? { ...task, micro_steps: task.micro_steps.map((micro) => micro.id === microStepId ? { ...micro, started_at: result.started_at } : micro) }
-            : task) }
-        : step));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось запустить микрошаг');
-    } finally {
-      setUpdatingMicroStepID(null);
-    }
-  };
-
   const toggleMicroStep = async (stepId: string, taskId: string, microStep: MicroStep) => {
     if (updatingMicroStepID) return;
     const accessToken = localStorage.getItem('access_token');
@@ -246,12 +190,12 @@ export const Roadmap: React.FC = () => {
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed }),
       });
-      const result = await response.json().catch(() => null) as { actual_minutes?: number; error?: string } | null;
+      const result = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(result?.error ?? 'Не удалось сохранить микрошаг');
       setSteps((previous) => previous.map((step) => step.id === stepId
         ? { ...step, tasks: step.tasks.map((task) => task.id === taskId
             ? { ...task, micro_steps: task.micro_steps.map((micro) => micro.id === microStep.id
-                ? { ...micro, completed, started_at: completed ? micro.started_at : undefined, actual_minutes: result?.actual_minutes ?? micro.actual_minutes }
+                ? { ...micro, completed }
                 : micro) }
             : task) }
         : step));
@@ -265,9 +209,8 @@ export const Roadmap: React.FC = () => {
   const addMicroStep = async (event: React.FormEvent, stepId: string, taskId: string) => {
     event.preventDefault();
     const title = microStepTitle.trim();
-    const estimatedMinutes = Number(microStepMinutes);
-    if (!title || !Number.isInteger(estimatedMinutes) || estimatedMinutes < 1) {
-      setErrorMessage('Укажите название и время микрошагa в минутах.');
+    if (!title) {
+      setErrorMessage('Укажите название микрошагa.');
       return;
     }
     const accessToken = localStorage.getItem('access_token');
@@ -278,7 +221,7 @@ export const Roadmap: React.FC = () => {
       const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}/micro-steps`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, estimated_minutes: estimatedMinutes }),
+        body: JSON.stringify({ title }),
       });
       const result = await response.json().catch(() => null) as MicroStep & { error?: string } | null;
       if (!response.ok || !result?.id) throw new Error(result?.error ?? 'Не удалось добавить микрошаг');
@@ -286,7 +229,6 @@ export const Roadmap: React.FC = () => {
         ? { ...step, tasks: step.tasks.map((task) => task.id === taskId ? { ...task, micro_steps: [...task.micro_steps, result] } : task) }
         : step));
       setMicroStepTitle('');
-      setMicroStepMinutes('15');
       setCreatingMicroStepFor(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось добавить микрошаг');
@@ -295,7 +237,18 @@ export const Roadmap: React.FC = () => {
     }
   };
 
-  const handleGenerateRoadmap = async () => {
+  const handleOpenGenerateModal = () => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      setErrorMessage('Войдите в аккаунт, чтобы сгенерировать план.');
+      return;
+    }
+    setErrorMessage('');
+    setIsModalOpen(true);
+  };
+
+  const handleGenerateRoadmap = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) {
       setErrorMessage('Войдите в аккаунт, чтобы сгенерировать план.');
@@ -327,6 +280,7 @@ export const Roadmap: React.FC = () => {
       setSteps(result.steps);
       setActiveStepId(result.steps[0].id);
       setIsGenerated(true);
+      setIsModalOpen(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
     } finally {
@@ -376,66 +330,28 @@ export const Roadmap: React.FC = () => {
       <div className="landing__container roadmap-container">
         
         {/* Header Section */}
-        <header className="roadmap-header">
-          <div className="roadmap-header__intro">
-            <div className="landing__badge">
-              <Sparkles className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" />
-              <span>
-                {generatedPlan
-                  ? `Классы ${generatedPlan.start_grade}–${generatedPlan.end_grade} · ${generatedPlan.start_academic_year} — ${generatedPlan.end_academic_year}`
-                  : 'Персональный учебный план'}
-              </span>
+        <header className="roadmap-header" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '20px', borderBottom: '1px solid #f3f4f6', textAlign: 'left' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '20px' }}>
+            <div className="roadmap-header__intro">
+              <div className="landing__badge" style={{ marginBottom: '6px' }}>
+                <Sparkles className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" />
+                <span>
+                  {generatedPlan
+                    ? `Классы ${generatedPlan.start_grade}–${generatedPlan.end_grade} · ${generatedPlan.start_academic_year} — ${generatedPlan.end_academic_year}`
+                    : 'Персональный трек'}
+                </span>
+              </div>
+              <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#1f2937', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                Персонализированный план
+              </h1>
+              <p style={{ fontSize: '14px', color: '#6b7280', margin: 0, lineHeight: '1.4' }}>
+                {generatedPlan ? generatedPlan.summary : 'Индивидуальная стратегия академического развития и формирования портфолио.'}
+              </p>
             </div>
-            <h1 className="landing__title">
-              {generatedPlan ? (
-                <>{generatedPlan.title}</>
-              ) : (
-                <>Стратегия построения <span className="landing__title-accent">Портфолио</span></>
-              )}
-            </h1>
-            <p className="landing__description roadmap-header__summary">
-              {generatedPlan
-                ? generatedPlan.summary
-                : 'Персонализированный трек подготовки инженерных проектов с акцентом на чистую архитектуру, масштабируемость и доказанные метрики.'}
-            </p>
-          </div>
 
-          {/* Action Button & Progress Card */}
-          <div className="roadmap-header__actions">
-            <label className="roadmap-preferences">
-              Предпочтения для плана
-              <textarea
-                value={preferences}
-                onChange={(event) => setPreferences(event.target.value)}
-                maxLength={2000}
-                rows={3}
-                placeholder="Например: интересуюсь робототехникой, предпочитаю заниматься по выходным"
-                className="roadmap-preferences__input"
-              />
-            </label>
-            <button
-              onClick={handleGenerateRoadmap}
-              disabled={isGenerating}
-              className="landing__primary-button roadmap-generate"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-afbdd13a38 tw-dffcdbf826" />
-                  <span>Парсинг JSON плана...</span>
-                </>
-              ) : (
-                <>
-                  <Wand2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-dffcdbf826" />
-                  <span>{isGenerated ? 'Пересоздать план' : 'Сгенерировать roadmap'}</span>
-                </>
-              )}
-            </button>
-            {errorMessage && (
-              <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">{errorMessage}</p>
-            )}
-
-            {/* Progress Card */}
-            <div className="roadmap-progress">
+            {/* Прогресс-бар справа */}
+            <div className="roadmap-progress" style={{ minWidth: '240px', margin: 0 }}>
               <div className="roadmap-progress__heading">
                 <span className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-117ec720ea tw-09ace3a4d9">
                   Общий прогресс
@@ -447,16 +363,41 @@ export const Roadmap: React.FC = () => {
               </div>
               <div className="roadmap-progress__footer">
                 <span>Задач: {completedTasks}/{totalTasks}</span>
-                <span className="tw-60fbb77139 tw-3960ffc248 tw-44ee8ba0a4">
-                  <Clock className="tw-bf600f8e02 tw-7fc7f732bf tw-17d820623e" /> {generatedPlan ? `${generatedPlan.weekly_hours} ч/неделю` : 'План до 11 класса'}
-                </span>
+                <span>{generatedPlan ? `До ${generatedPlan.end_grade} класса` : 'План до 11 класса'}</span>
               </div>
             </div>
           </div>
+
+          {/* Кнопка открытия модального окна */}
+          <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', marginTop: '4px' }}>
+            <button
+              onClick={handleOpenGenerateModal}
+              disabled={isGenerating}
+              className="landing__primary-button roadmap-generate"
+              style={{ padding: '10px 24px', width: 'auto', margin: 0 }}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-afbdd13a38 tw-dffcdbf826" />
+                  <span>Создание...</span>
+                </>
+              ) : (
+                <>
+                  <Wand2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-dffcdbf826" />
+                  <span>{isGenerated ? 'Пересоздать план' : 'Сгенерировать план'}</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {errorMessage && (
+            <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261" style={{ margin: 0 }}>{errorMessage}</p>
+          )}
+
         </header>
 
         {/* Main Grid Layout */}
-        <div className="roadmap-grid">
+        <div className="roadmap-grid" style={{ marginTop: '24px' }}>
           
           {/* Left Column: Steps List (5 cols) */}
           <div className="roadmap-steps">
@@ -548,7 +489,7 @@ export const Roadmap: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <strong className="tw-69450ef148 tw-93914e0db1">Инструкция:</strong> Нажмите «Сгенерировать roadmap», чтобы развернуть структуру академического плана `p_001`.
+                    <strong className="tw-69450ef148 tw-93914e0db1">Инструкция:</strong> Нажмите «Сгенерировать план», чтобы развернуть структуру академического плана.
                   </>
                 )}
               </div>
@@ -583,28 +524,8 @@ export const Roadmap: React.FC = () => {
                           <span className={`tw-fc7473ca09 ${task.completed ? "tw-093ca5623c tw-8ecebc9f80" : "tw-69450ef148"}`}>
                             {task.title}
                           </span>
-                          <div className="tw-b6b02c0ebe tw-60fbb77139 tw-1eb5c6df38 tw-77a2a20e90 tw-d058ca6de6 tw-16720c5987">
-                            <span>{task.task_type || 'other'}</span>
-                            <span>Оценка: {task.estimated_minutes ?? '—'} мин</span>
-                            {task.actual_minutes !== undefined && <span>Факт: {task.actual_minutes} мин</span>}
-                          </div>
+                          <span className="task-type-tag">{taskTypeLabel(task.task_type)}</span>
                         </div>
-                      </div>
-                      <div className="tw-60fbb77139 tw-012fbd121f tw-3960ffc248 tw-77a2a20e90">
-                        <span className="tw-359090c2d5 tw-e83a7042bc tw-16720c5987 tw-48a2a9e0eb tw-d5eab218aa tw-660d2effb8 tw-421ac2be50 tw-ca6bcd4b6f tw-18049387f0">
-                          {task.duration}
-                        </span>
-                        {!task.completed && (
-                          <button
-                            type="button"
-                            onClick={(event) => { event.stopPropagation(); void startTask(activeStep.id, task.id); }}
-                            disabled={startingTaskID === task.id}
-                            className={`tw-52083e7da4 tw-3960ffc248 tw-44ee8ba0a4 tw-5f22e64f22 tw-ca6bcd4b6f tw-d5eab218aa tw-660d2effb8 tw-359090c2d5 tw-69450ef148 tw-ceb69a6b0e ${task.started_at ? "tw-35ddc899c2 tw-84c2118f8b tw-17d820623e" : "tw-18049387f0 tw-16720c5987 tw-de8648da90 tw-f09cea7854"}`}
-                          >
-                            <Timer className="tw-7fc7f732bf tw-bf600f8e02" />
-                            {task.started_at ? 'Таймер идёт' : 'Старт'}
-                          </button>
-                        )}
                       </div>
                     </div>
 
@@ -621,18 +542,7 @@ export const Roadmap: React.FC = () => {
                               ? <CheckCircle2 className="tw-11e59c6d5f tw-dc7972ebf3 tw-012fbd121f tw-17d820623e" />
                               : <Circle className="tw-11e59c6d5f tw-dc7972ebf3 tw-012fbd121f tw-16720c5987" />}
                             <span className={microStep.completed ? "tw-093ca5623c tw-16720c5987" : ''}>{microStep.title}</span>
-                            <span className="tw-16720c5987">{microStep.actual_minutes ?? microStep.estimated_minutes ?? '—'} мин</span>
                           </button>
-                          {!microStep.completed && (
-                            <button
-                              type="button"
-                              onClick={() => void startMicroStep(activeStep.id, task.id, microStep.id)}
-                              disabled={updatingMicroStepID === microStep.id}
-                              className="tw-d058ca6de6 tw-69450ef148 tw-17d820623e tw-f673f4a7d0 tw-d463b66401"
-                            >
-                              {microStep.started_at ? 'Таймер идёт' : 'Старт'}
-                            </button>
-                          )}
                         </div>
                       ))}
 
@@ -645,15 +555,6 @@ export const Roadmap: React.FC = () => {
                             maxLength={500}
                             placeholder="Новый микрошаг"
                             className="tw-7e0b7cdf1a tw-36e579c0b4 tw-5f22e64f22 tw-ca6bcd4b6f tw-18049387f0 tw-48a2a9e0eb tw-0e17f2bd90 tw-03b4dd7f17 tw-359090c2d5"
-                            required
-                          />
-                          <input
-                            aria-label="Оценка времени в минутах"
-                            type="number"
-                            min={1}
-                            value={microStepMinutes}
-                            onChange={(event) => setMicroStepMinutes(event.target.value)}
-                            className="tw-ed831a4dff tw-5f22e64f22 tw-ca6bcd4b6f tw-18049387f0 tw-48a2a9e0eb tw-d5eab218aa tw-03b4dd7f17 tw-359090c2d5"
                             required
                           />
                           <button type="submit" disabled={updatingMicroStepID === `new:${task.id}`} className="tw-5f22e64f22 tw-da1032643a tw-0e17f2bd90 tw-03b4dd7f17 tw-359090c2d5 tw-69450ef148 tw-5358eecb47 tw-d463b66401">
@@ -721,6 +622,72 @@ export const Roadmap: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Modal Dialog for Preferences */}
+      {isModalOpen && (
+        <div className="roadmap-modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="roadmap-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="roadmap-modal__header">
+              <div className="roadmap-modal__title-wrap">
+                <Wand2 className="roadmap-modal__icon" />
+                <h2>Параметры генерации</h2>
+              </div>
+              <button 
+                type="button" 
+                className="roadmap-modal__close" 
+                onClick={() => setIsModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleGenerateRoadmap} className="roadmap-modal__body">
+              <label htmlFor="modal-preferences" className="roadmap-modal__label">
+                Дополнительные пожелания и предпочтения
+              </label>
+              <textarea
+                id="modal-preferences"
+                value={preferences}
+                onChange={(e) => setPreferences(e.target.value)}
+                maxLength={500}
+                placeholder="Укажите ваши интересы, желаемые олимпиады или направления (например: фокус на Machine Learning, подбор стажировок, олимпиады по CS)..."
+                className="roadmap-modal__textarea"
+                rows={4}
+                autoFocus
+              />
+
+              <div className="roadmap-modal__footer">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="roadmap-modal__btn-secondary"
+                  disabled={isGenerating}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="landing__primary-button roadmap-modal__btn-primary"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="roadmap-spinner" />
+                      <span>Генерация...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 size={16} />
+                      <span>Сгенерировать</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

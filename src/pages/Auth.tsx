@@ -1,28 +1,11 @@
 import React, { useState } from 'react';
 import '../styles/Auth.css';
 import { useSession, type User } from '../lib/session';
+import { SUBJECT_DIRECTIONS } from '../lib/subjectDirections';
 import { useNavigate } from 'react-router-dom';
 
 type AuthMode = 'login' | 'register';
 type Role = 'student' | 'mentor';
-
-// Предметы и направления
-const SUBJECT_DIRECTIONS = [
-  'IT & Разработка',
-  'AI & Data Science',
-  'STEM & Инженерия',
-  'Наука & Исследования',
-  'Стажировки & Карьера',
-  'Экология & Sustainability',
-  'Медицина & Биотех',
-  'Бизнес & Предпринимательство',
-  'Юриспруденция & Law',
-  'Международные отношения',
-  'Экзамен SAT',
-  'Экзамен IELTS',
-  'Экзамен NUET',
-  'Олимпиады & Хакатоны',
-];
 
 // Навыки (для "Сильные стороны" и "Что улучшить")
 const SKILLS_LIST = [
