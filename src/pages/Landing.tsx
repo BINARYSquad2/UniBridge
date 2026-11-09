@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useSession } from '../lib/session';
+import '../styles/Landing.css';
 import {
   GraduationCap,
   Sparkles,
@@ -28,7 +29,7 @@ export default function Landing() {
       <div className="landing__container">
 
         {/* Hero Section */}
-        <section className="landing__hero mt-16 sm:mt-20 lg:mt-24 pt-12 sm:pt-16 pb-12 sm:pb-16">
+        <section id="main" className="landing__hero tw-5c8999fa38 tw-3f6ca0d934 tw-fe252c20cb tw-b4f77d766f tw-a532608c65 tw-e4256535da tw-ce55e84e0c">
           <div className="landing__hero-content">
 
             {/* Top Badge */}
@@ -59,7 +60,7 @@ export default function Landing() {
                 <ArrowRight />
               </Link>
 
-              <Link to="/register" className="landing__secondary-button inline-flex items-center justify-center">
+              <Link to="/register" className="landing__secondary-button tw-52083e7da4 tw-3960ffc248 tw-86843cf1e2">
                 Стать наставником
               </Link>
             </div>
@@ -96,8 +97,8 @@ export default function Landing() {
           </div>
 
           <div className="landing__features-grid">
-            
-            {/* Feature 1 */}
+
+            {/* Feature 1 (Пункт 5) */}
             <div className="landing__feature-card">
               <div className="landing__feature-icon">
                 <Users />
@@ -211,7 +212,7 @@ export default function Landing() {
                   </div>
                 </div>
 
-                <Link to={catalog} className="landing__mentor-button text-center">
+                <Link to={catalog} className="landing__mentor-button tw-ca6bf63030">
                   Записаться на сессию
                 </Link>
               </div>
@@ -228,7 +229,7 @@ export default function Landing() {
             <p className="landing__cta-description">
               Зарегистрируйся прямо сейчас и начни строить свое будущее прямо сейчас.
             </p>
-            <Link to="/register" className="landing__cta-button inline-flex items-center justify-center">
+            <Link to="/register" className="landing__cta-button tw-52083e7da4 tw-3960ffc248 tw-86843cf1e2">
               Начать бесплатно
             </Link>
           </div>

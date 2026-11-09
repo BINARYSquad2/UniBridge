@@ -15,17 +15,14 @@ type Kanban struct {
 }
 
 type kanbanMicroStep struct {
-	ID               string `json:"id"`
-	Title            string `json:"title"`
-	EstimatedMinutes *int   `json:"estimated_minutes,omitempty"`
-	Completed        bool   `json:"completed"`
-	ActualMinutes    *int   `json:"actual_minutes,omitempty"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Completed bool   `json:"completed"`
 }
 
 type kanbanTask struct {
 	ID         string            `json:"id"`
 	Title      string            `json:"title"`
-	Duration   string            `json:"duration"`
 	TaskType   string            `json:"task_type"`
 	Status     string            `json:"status"`
 	MicroSteps []kanbanMicroStep `json:"micro_steps"`
@@ -33,7 +30,6 @@ type kanbanTask struct {
 
 type createKanbanTaskRequest struct {
 	Title      string            `json:"title"`
-	Duration   string            `json:"duration"`
 	TaskType   string            `json:"task_type"`
 	MicroSteps []kanbanMicroStep `json:"micro_steps"`
 }
@@ -55,7 +51,7 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.QueryContext(r.Context(), `
-		SELECT id::text, title, duration, task_type, status, micro_steps::text
+		SELECT id::text, title, task_type, status, micro_steps::text
 		FROM kanban_tasks
 		WHERE user_id = $1
 		ORDER BY created_at DESC, id
@@ -70,7 +66,7 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var task kanbanTask
 		var microStepsJSON string
-		if err := rows.Scan(&task.ID, &task.Title, &task.Duration, &task.TaskType, &task.Status, &microStepsJSON); err != nil {
+		if err := rows.Scan(&task.ID, &task.Title, &task.TaskType, &task.Status, &microStepsJSON); err != nil {
 			writeKanbanError(w, "scan task", err)
 			return
 		}
@@ -130,13 +126,11 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := tx.QueryContext(r.Context(), `
-		SELECT task.id::text, task.title, task.duration, COALESCE(task.task_type, 'other'), task.completed,
+		SELECT task.id::text, task.title, COALESCE(task.task_type, 'other'), task.completed,
 			COALESCE(jsonb_agg(jsonb_build_object(
 				'id', micro.id::text,
 				'title', micro.title,
-				'estimated_minutes', micro.estimated_minutes,
-				'completed', micro.completed,
-				'actual_minutes', micro.actual_minutes
+				'completed', micro.completed
 			) ORDER BY micro.position) FILTER (WHERE micro.id IS NOT NULL), '[]'::jsonb)::text
 		FROM roadmap_tasks AS task
 		LEFT JOIN roadmap_micro_steps AS micro ON micro.roadmap_task_id = task.id
@@ -152,9 +146,9 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 
 	importedTasks := make([]kanbanTask, 0)
 	for rows.Next() {
-		var sourceID, title, duration, taskType, microStepsJSON string
+		var sourceID, title, taskType, microStepsJSON string
 		var completed bool
-		if err := rows.Scan(&sourceID, &title, &duration, &taskType, &completed, &microStepsJSON); err != nil {
+		if err := rows.Scan(&sourceID, &title, &taskType, &completed, &microStepsJSON); err != nil {
 			writeKanbanError(w, "scan roadmap task", err)
 			return
 		}
@@ -178,7 +172,7 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		importedTasks = append(importedTasks, kanbanTask{
-			ID: sourceID, Title: title, Duration: duration, TaskType: taskType,
+			ID: sourceID, Title: title, TaskType: taskType,
 			Status: status, MicroSteps: microSteps,
 		})
 	}
@@ -199,10 +193,10 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		result, err := tx.ExecContext(r.Context(), `
-			INSERT INTO kanban_tasks (user_id, source_roadmap_task_id, title, duration, task_type, status, micro_steps)
-			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+			INSERT INTO kanban_tasks (user_id, source_roadmap_task_id, title, task_type, status, micro_steps)
+			VALUES ($1, $2, $3, $4, $5, $6::jsonb)
 			ON CONFLICT (user_id, source_roadmap_task_id) DO NOTHING
-		`, userID, task.ID, task.Title, task.Duration, task.TaskType, task.Status, string(encodedMicroSteps))
+		`, userID, task.ID, task.Title, task.TaskType, task.Status, string(encodedMicroSteps))
 		if err != nil {
 			writeKanbanError(w, "save imported task", err)
 			return
@@ -238,15 +232,11 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.Title = strings.TrimSpace(input.Title)
-	input.Duration = strings.TrimSpace(input.Duration)
 	input.TaskType = strings.TrimSpace(input.TaskType)
-	if input.Duration == "" {
-		input.Duration = "1 час"
-	}
 	if input.TaskType == "" {
 		input.TaskType = "other"
 	}
-	if input.Title == "" || len(input.Title) > 500 || len(input.Duration) > 120 || len(input.TaskType) > 100 || len(input.MicroSteps) > 100 {
+	if input.Title == "" || len(input.Title) > 500 || len(input.TaskType) > 100 || len(input.MicroSteps) > 100 {
 		writeAuthError(w, http.StatusBadRequest, "task fields are invalid")
 		return
 	}
@@ -262,11 +252,11 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 	var task kanbanTask
 	var encodedMicroSteps string
 	err = h.DB.QueryRowContext(r.Context(), `
-		INSERT INTO kanban_tasks (user_id, title, duration, task_type, micro_steps)
-		VALUES ($1, $2, $3, $4, $5::jsonb)
-		RETURNING id::text, title, duration, task_type, status, micro_steps::text
-	`, userID, input.Title, input.Duration, input.TaskType, string(microStepsJSON)).Scan(
-		&task.ID, &task.Title, &task.Duration, &task.TaskType, &task.Status, &encodedMicroSteps,
+		INSERT INTO kanban_tasks (user_id, title, task_type, micro_steps)
+		VALUES ($1, $2, $3, $4::jsonb)
+		RETURNING id::text, title, task_type, status, micro_steps::text
+	`, userID, input.Title, input.TaskType, string(microStepsJSON)).Scan(
+		&task.ID, &task.Title, &task.TaskType, &task.Status, &encodedMicroSteps,
 	)
 	if err != nil {
 		writeKanbanError(w, "create task", err)
@@ -317,9 +307,9 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		UPDATE kanban_tasks
 		SET status = $1, micro_steps = $2::jsonb, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $3 AND user_id = $4
-		RETURNING id::text, title, duration, task_type, status, micro_steps::text
+		RETURNING id::text, title, task_type, status, micro_steps::text
 	`, input.Status, string(microStepsJSON), r.PathValue("taskID"), userID).Scan(
-		&task.ID, &task.Title, &task.Duration, &task.TaskType, &task.Status, &encodedMicroSteps,
+		&task.ID, &task.Title, &task.TaskType, &task.Status, &encodedMicroSteps,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusNotFound, "kanban task not found")
@@ -340,12 +330,6 @@ func validateKanbanMicroSteps(microSteps []kanbanMicroStep) error {
 	for _, microStep := range microSteps {
 		if strings.TrimSpace(microStep.ID) == "" || strings.TrimSpace(microStep.Title) == "" || len(microStep.Title) > 500 {
 			return errors.New("each micro-step requires an id and a title of at most 500 characters")
-		}
-		if microStep.EstimatedMinutes != nil && *microStep.EstimatedMinutes < 1 {
-			return errors.New("estimated_minutes must be positive")
-		}
-		if microStep.ActualMinutes != nil && *microStep.ActualMinutes < 0 {
-			return errors.New("actual_minutes cannot be negative")
 		}
 	}
 	return nil

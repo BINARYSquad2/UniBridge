@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +17,15 @@ type recordingGeminiGenerator struct {
 func (g *recordingGeminiGenerator) Generate(_ context.Context, model, prompt string) (string, error) {
 	g.models = append(g.models, model)
 	g.prompts = append(g.prompts, prompt)
-	estimatedMinutes := 120
+	plan := testRoadmapPlan()
+	if model == "first-model" {
+		plan.EndGrade = 10
+	}
+	encoded, err := json.Marshal(plan)
+	return string(encoded), err
+}
+
+func testRoadmapPlan() roadmapPlan {
 	plan := roadmapPlan{
 		Title:             "Учебный план",
 		Summary:           "План подготовки",
@@ -24,18 +33,22 @@ func (g *recordingGeminiGenerator) Generate(_ context.Context, model, prompt str
 		EndGrade:          11,
 		StartAcademicYear: "2026-2027",
 		EndAcademicYear:   "2028-2029",
-		WeeklyHours:       8,
-		Steps: []roadmapStep{{
-			ID: "step-1", Phase: "9 класс", Title: "Фундамент", Description: "Основы",
-			Status: "in_progress", EstimatedTime: "2026-2027", ImpactScore: 70,
-			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа", TaskType: "academic", EstimatedMinutes: &estimatedMinutes}},
-		}},
 	}
-	if model == "first-model" {
-		plan.EndGrade = 10
+	for stepIndex := 0; stepIndex < minRoadmapMilestones; stepIndex++ {
+		step := roadmapStep{
+			ID: fmt.Sprintf("step-%d", stepIndex+1), Phase: "9 класс", Title: "Фундамент",
+			Description: "Создать 2 проекта для портфолио", Status: "upcoming",
+			EstimatedTime: "2026-2027", ImpactScore: 70,
+		}
+		for taskIndex := 0; taskIndex < minRoadmapTasksPerMilestone; taskIndex++ {
+			step.Tasks = append(step.Tasks, roadmapTask{
+				ID: fmt.Sprintf("task-%d-%d", stepIndex+1, taskIndex+1), Title: "Выбрать направление",
+				TaskType: "academic",
+			})
+		}
+		plan.Steps = append(plan.Steps, step)
 	}
-	encoded, err := json.Marshal(plan)
-	return string(encoded), err
+	return plan
 }
 
 func TestAcademicYearRange(t *testing.T) {
@@ -61,21 +74,7 @@ func TestAcademicYearRange(t *testing.T) {
 }
 
 func TestValidateRoadmapPlanRequiresRequestedGradeRange(t *testing.T) {
-	estimatedMinutes := 120
-	plan := roadmapPlan{
-		Title:             "Учебный план",
-		Summary:           "Подготовка по выбранным направлениям",
-		StartGrade:        9,
-		EndGrade:          11,
-		StartAcademicYear: "2026-2027",
-		EndAcademicYear:   "2028-2029",
-		WeeklyHours:       8,
-		Steps: []roadmapStep{{
-			ID: "step-1", Phase: "9 класс", Title: "Фундамент", Description: "Основы",
-			Status: "in_progress", EstimatedTime: "2026-2027", ImpactScore: 70,
-			Tasks: []roadmapTask{{ID: "task-1", Title: "Выбрать направление", Duration: "2 часа", TaskType: "academic", EstimatedMinutes: &estimatedMinutes}},
-		}},
-	}
+	plan := testRoadmapPlan()
 
 	if err := validateRoadmapPlan(plan, 9, 2026, 2028); err != nil {
 		t.Fatalf("valid plan rejected: %v", err)
@@ -84,6 +83,48 @@ func TestValidateRoadmapPlanRequiresRequestedGradeRange(t *testing.T) {
 	plan.EndGrade = 10
 	if err := validateRoadmapPlan(plan, 9, 2026, 2028); err == nil {
 		t.Fatal("plan ending before grade 11 was accepted")
+	}
+}
+
+func TestValidateRoadmapPlanEnforcesMilestoneAndTaskCounts(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*roadmapPlan)
+	}{
+		{
+			name: "too few milestones",
+			mutate: func(plan *roadmapPlan) {
+				plan.Steps = plan.Steps[:minRoadmapMilestones-1]
+			},
+		},
+		{
+			name: "too many milestones",
+			mutate: func(plan *roadmapPlan) {
+				plan.Steps = append(plan.Steps, plan.Steps[0], plan.Steps[0])
+			},
+		},
+		{
+			name: "too few tasks",
+			mutate: func(plan *roadmapPlan) {
+				plan.Steps[0].Tasks = plan.Steps[0].Tasks[:minRoadmapTasksPerMilestone-1]
+			},
+		},
+		{
+			name: "too many tasks",
+			mutate: func(plan *roadmapPlan) {
+				plan.Steps[0].Tasks = append(plan.Steps[0].Tasks, plan.Steps[0].Tasks[0], plan.Steps[0].Tasks[0], plan.Steps[0].Tasks[0])
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := testRoadmapPlan()
+			test.mutate(&plan)
+			if err := validateRoadmapPlan(plan, 9, 2026, 2028); err == nil {
+				t.Fatal("invalid milestone/task count was accepted")
+			}
+		})
 	}
 }
 
@@ -132,5 +173,20 @@ func TestGeneratePlanIncludesPreferencesInPrompt(t *testing.T) {
 	}
 	if len(generator.prompts) != 1 || !strings.Contains(generator.prompts[0], preferences) {
 		t.Fatalf("generated prompt %q does not include preferences %q", generator.prompts, preferences)
+	}
+	for _, required := range []string{
+		"ровно 4-5 milestones",
+		"ровно 2-4 конкретные задачи",
+		"измеримый критерий завершения",
+		"micro_steps: []",
+	} {
+		if !strings.Contains(generator.prompts[0], required) {
+			t.Errorf("generated prompt %q does not include requirement %q", generator.prompts[0], required)
+		}
+	}
+	for _, removed := range []string{"weekly_hours", "estimated_minutes", "duration"} {
+		if strings.Contains(generator.prompts[0], removed) {
+			t.Errorf("generated prompt %q still includes removed timing field %q", generator.prompts[0], removed)
+		}
 	}
 }

@@ -37,10 +37,10 @@ type authResponse struct {
 }
 
 type registerRequest struct {
-	Name           string   `json:"name"`
-	Surname        string   `json:"surname"`
 	Bio            string   `json:"bio"`
 	Subjects       []string `json:"subjects"`
+	Name           string   `json:"name"`
+	Surname        string   `json:"surname"`
 	FullName       string   `json:"full_name"`
 	Email          string   `json:"email"`
 	Password       string   `json:"password"`
@@ -231,15 +231,10 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if input.Role == "mentor" &&
-		(len(strings.TrimSpace(input.Bio)) == 0 ||
-			len(input.Bio) > 4000 ||
-			len(input.Subjects) == 0 ||
-			len(input.Subjects) > 14) {
+	if input.Role == "mentor" && (len(strings.TrimSpace(input.Bio)) == 0 || len(input.Bio) > 4000 || len(input.Subjects) == 0 || len(input.Subjects) > 14) {
 		writeAuthError(w, http.StatusBadRequest, "Укажите описание и направления ментора")
 		return
 	}
-
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "could not create account")

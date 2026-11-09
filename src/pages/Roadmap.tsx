@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import '../styles/Roadmap.css';
 import { useNavigate } from 'react-router-dom';
+import '../styles/Landing.css';
+import '../styles/TaskTypeTag.css';
 import { 
   CheckCircle2, 
   Circle, 
-  Clock, 
   Sparkles, 
   Target, 
   BookOpen, 
@@ -13,27 +15,21 @@ import {
   Loader2,
   Wand2,
   Plus,
-  Timer
+  X
 } from 'lucide-react';
+import { taskTypeLabel } from '../lib/taskTypes';
 
 interface MicroStep {
   id: string;
   title: string;
-  estimated_minutes?: number;
-  started_at?: string;
   completed: boolean;
-  actual_minutes?: number;
 }
 
 interface Task {
   id: string;
   title: string;
-  duration: string;
   task_type: string;
-  estimated_minutes?: number;
-  started_at?: string;
   completed: boolean;
-  actual_minutes?: number;
   micro_steps: MicroStep[];
 }
 
@@ -57,7 +53,6 @@ interface GeneratedRoadmap {
   end_grade: number;
   start_academic_year: string;
   end_academic_year: string;
-  weekly_hours: number;
   steps: RoadmapStep[];
 }
 
@@ -75,7 +70,7 @@ const INITIAL_STEPS: RoadmapStep[] = [
     impactScore: 50,
     artifacts: ['Draft Plan JSON'],
     tasks: [
-      { id: 't0', title: 'Нажать кнопку генерации плана выше', duration: '1 мин', task_type: 'other', completed: false, micro_steps: [] }
+      { id: 't0', title: 'Нажать кнопку генерации плана выше', task_type: 'other', completed: false, micro_steps: [] }
     ]
   }
 ];
@@ -89,13 +84,12 @@ export const Roadmap: React.FC = () => {
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedRoadmap | null>(null);
   const [preferences, setPreferences] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [updatingTaskID, setUpdatingTaskID] = useState<string | null>(null);
-  const [startingTaskID, setStartingTaskID] = useState<string | null>(null);
   const [updatingMicroStepID, setUpdatingMicroStepID] = useState<string | null>(null);
   const [creatingMicroStepFor, setCreatingMicroStepFor] = useState<string | null>(null);
   const [microStepTitle, setMicroStepTitle] = useState('');
-  const [microStepMinutes, setMicroStepMinutes] = useState('15');
 
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
@@ -156,7 +150,7 @@ export const Roadmap: React.FC = () => {
           },
           body: JSON.stringify({ completed }),
         });
-        const result = await response.json().catch(() => null) as { error?: string; actual_minutes?: number } | null;
+        const result = await response.json().catch(() => null) as { error?: string } | null;
         if (!response.ok) {
           throw new Error(result && 'error' in result ? result.error : 'Не удалось сохранить задачу');
         }
@@ -164,7 +158,7 @@ export const Roadmap: React.FC = () => {
           ? {
               ...item,
               tasks: item.tasks.map((currentTask) => currentTask.id === taskId
-                ? { ...currentTask, completed, started_at: completed ? currentTask.started_at : undefined, actual_minutes: result?.actual_minutes ?? currentTask.actual_minutes }
+                ? { ...currentTask, completed }
                 : currentTask),
               status,
             }
@@ -183,54 +177,6 @@ export const Roadmap: React.FC = () => {
       : item));
   };
 
-  const startTask = async (stepId: string, taskId: string) => {
-    if (startingTaskID) return;
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
-    setStartingTaskID(taskId);
-    setErrorMessage('');
-    try {
-      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}/start`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const result = await response.json().catch(() => null) as { started_at?: string; error?: string } | null;
-      if (!response.ok || !result?.started_at) throw new Error(result?.error ?? 'Не удалось запустить таймер');
-      setSteps((previous) => previous.map((step) => step.id === stepId
-        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId ? { ...task, started_at: result.started_at } : task) }
-        : step));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось запустить таймер');
-    } finally {
-      setStartingTaskID(null);
-    }
-  };
-
-  const startMicroStep = async (stepId: string, taskId: string, microStepId: string) => {
-    if (updatingMicroStepID) return;
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
-    setUpdatingMicroStepID(microStepId);
-    setErrorMessage('');
-    try {
-      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/micro-steps/${encodeURIComponent(microStepId)}/start`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const result = await response.json().catch(() => null) as { started_at?: string; error?: string } | null;
-      if (!response.ok || !result?.started_at) throw new Error(result?.error ?? 'Не удалось запустить микрошаг');
-      setSteps((previous) => previous.map((step) => step.id === stepId
-        ? { ...step, tasks: step.tasks.map((task) => task.id === taskId
-            ? { ...task, micro_steps: task.micro_steps.map((micro) => micro.id === microStepId ? { ...micro, started_at: result.started_at } : micro) }
-            : task) }
-        : step));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось запустить микрошаг');
-    } finally {
-      setUpdatingMicroStepID(null);
-    }
-  };
-
   const toggleMicroStep = async (stepId: string, taskId: string, microStep: MicroStep) => {
     if (updatingMicroStepID) return;
     const accessToken = localStorage.getItem('access_token');
@@ -244,12 +190,12 @@ export const Roadmap: React.FC = () => {
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed }),
       });
-      const result = await response.json().catch(() => null) as { actual_minutes?: number; error?: string } | null;
+      const result = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(result?.error ?? 'Не удалось сохранить микрошаг');
       setSteps((previous) => previous.map((step) => step.id === stepId
         ? { ...step, tasks: step.tasks.map((task) => task.id === taskId
             ? { ...task, micro_steps: task.micro_steps.map((micro) => micro.id === microStep.id
-                ? { ...micro, completed, started_at: completed ? micro.started_at : undefined, actual_minutes: result?.actual_minutes ?? micro.actual_minutes }
+                ? { ...micro, completed }
                 : micro) }
             : task) }
         : step));
@@ -263,9 +209,8 @@ export const Roadmap: React.FC = () => {
   const addMicroStep = async (event: React.FormEvent, stepId: string, taskId: string) => {
     event.preventDefault();
     const title = microStepTitle.trim();
-    const estimatedMinutes = Number(microStepMinutes);
-    if (!title || !Number.isInteger(estimatedMinutes) || estimatedMinutes < 1) {
-      setErrorMessage('Укажите название и время микрошагa в минутах.');
+    if (!title) {
+      setErrorMessage('Укажите название микрошагa.');
       return;
     }
     const accessToken = localStorage.getItem('access_token');
@@ -276,7 +221,7 @@ export const Roadmap: React.FC = () => {
       const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/roadmap/tasks/${encodeURIComponent(taskId)}/micro-steps`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, estimated_minutes: estimatedMinutes }),
+        body: JSON.stringify({ title }),
       });
       const result = await response.json().catch(() => null) as MicroStep & { error?: string } | null;
       if (!response.ok || !result?.id) throw new Error(result?.error ?? 'Не удалось добавить микрошаг');
@@ -284,7 +229,6 @@ export const Roadmap: React.FC = () => {
         ? { ...step, tasks: step.tasks.map((task) => task.id === taskId ? { ...task, micro_steps: [...task.micro_steps, result] } : task) }
         : step));
       setMicroStepTitle('');
-      setMicroStepMinutes('15');
       setCreatingMicroStepFor(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось добавить микрошаг');
@@ -293,7 +237,18 @@ export const Roadmap: React.FC = () => {
     }
   };
 
-  const handleGenerateRoadmap = async () => {
+  const handleOpenGenerateModal = () => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      setErrorMessage('Войдите в аккаунт, чтобы сгенерировать план.');
+      return;
+    }
+    setErrorMessage('');
+    setIsModalOpen(true);
+  };
+
+  const handleGenerateRoadmap = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) {
       setErrorMessage('Войдите в аккаунт, чтобы сгенерировать план.');
@@ -325,6 +280,7 @@ export const Roadmap: React.FC = () => {
       setSteps(result.steps);
       setActiveStepId(result.steps[0].id);
       setIsGenerated(true);
+      setIsModalOpen(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
     } finally {
@@ -366,149 +322,123 @@ export const Roadmap: React.FC = () => {
   const overallProgress = Math.round((completedTasks / totalTasks) * 100) || 0;
 
   return (
-    <div className="landing-page">
+    <div className="landing-page roadmap-page">
       {/* Hero / Background elements */}
       <div className="landing__hero-decoration" />
       <div className="landing__hero-decoration-2" />
 
-      <div className="landing__container py-12 md:py-16 space-y-12">
+      <div className="landing__container roadmap-container">
         
         {/* Header Section */}
-        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-8 border-b border-border">
-          <div className="space-y-4 max-w-2xl">
-            <div className="landing__badge">
-              <Sparkles className="w-4 h-4 text-brand" />
-              <span>
-                {generatedPlan
-                  ? `Классы ${generatedPlan.start_grade}–${generatedPlan.end_grade} · ${generatedPlan.start_academic_year} — ${generatedPlan.end_academic_year}`
-                  : 'Персональный учебный план'}
-              </span>
+        <header className="roadmap-header" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '20px', borderBottom: '1px solid #f3f4f6', textAlign: 'left' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '20px' }}>
+            <div className="roadmap-header__intro">
+              <div className="landing__badge" style={{ marginBottom: '6px' }}>
+                <Sparkles className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" />
+                <span>
+                  {generatedPlan
+                    ? `Классы ${generatedPlan.start_grade}–${generatedPlan.end_grade} · ${generatedPlan.start_academic_year} — ${generatedPlan.end_academic_year}`
+                    : 'Персональный трек'}
+                </span>
+              </div>
+              <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#1f2937', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                Персонализированный план
+              </h1>
+              <p style={{ fontSize: '14px', color: '#6b7280', margin: 0, lineHeight: '1.4' }}>
+                {generatedPlan ? generatedPlan.summary : 'Индивидуальная стратегия академического развития и формирования портфолио.'}
+              </p>
             </div>
-            <h1 className="landing__title">
-              {generatedPlan ? (
-                <>{generatedPlan.title}</>
-              ) : (
-                <>Стратегия построения <span className="landing__title-accent">Портфолио</span></>
-              )}
-            </h1>
-            <p className="landing__description text-left mx-0">
-              {generatedPlan
-                ? generatedPlan.summary
-                : 'Персонализированный трек подготовки инженерных проектов с акцентом на чистую архитектуру, масштабируемость и доказанные метрики.'}
-            </p>
+
+            {/* Прогресс-бар справа */}
+            <div className="roadmap-progress" style={{ minWidth: '240px', margin: 0 }}>
+              <div className="roadmap-progress__heading">
+                <span className="tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-117ec720ea tw-09ace3a4d9">
+                  Общий прогресс
+                </span>
+                <span className="tw-4ee734926f tw-7fbb85697d tw-17d820623e">{overallProgress}%</span>
+              </div>
+              <div className="roadmap-progress__track">
+                <div className={`roadmap-progress__fill progress-width--${overallProgress}`} />
+              </div>
+              <div className="roadmap-progress__footer">
+                <span>Задач: {completedTasks}/{totalTasks}</span>
+                <span>{generatedPlan ? `До ${generatedPlan.end_grade} класса` : 'План до 11 класса'}</span>
+              </div>
+            </div>
           </div>
 
-          {/* Action Button & Progress Card */}
-          <div className="flex flex-col sm:flex-row md:flex-col gap-4 min-w-[280px]">
-            <label className="flex flex-col gap-2 text-sm font-semibold text-text-primary">
-              Предпочтения для плана
-              <textarea
-                value={preferences}
-                onChange={(event) => setPreferences(event.target.value)}
-                maxLength={2000}
-                rows={3}
-                placeholder="Например: интересуюсь робототехникой, предпочитаю заниматься по выходным"
-                className="w-full resize-y rounded-xl border border-border bg-bg-surface px-3 py-2.5 text-sm font-normal leading-relaxed text-text-primary placeholder:text-text-secondary/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-              />
-            </label>
+          {/* Кнопка открытия модального окна */}
+          <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', marginTop: '4px' }}>
             <button
-              onClick={handleGenerateRoadmap}
+              onClick={handleOpenGenerateModal}
               disabled={isGenerating}
-              className="landing__primary-button w-full justify-center gap-2 py-3.5 shadow-sm disabled:opacity-75 disabled:cursor-not-allowed"
+              className="landing__primary-button roadmap-generate"
+              style={{ padding: '10px 24px', width: 'auto', margin: 0 }}
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-text-inverse" />
-                  <span>Парсинг JSON плана...</span>
+                  <Loader2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-afbdd13a38 tw-dffcdbf826" />
+                  <span>Создание...</span>
                 </>
               ) : (
                 <>
-                  <Wand2 className="w-4 h-4 text-text-inverse" />
-                  <span>{isGenerated ? 'Пересоздать план' : 'Сгенерировать roadmap'}</span>
+                  <Wand2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-dffcdbf826" />
+                  <span>{isGenerated ? 'Пересоздать план' : 'Сгенерировать план'}</span>
                 </>
               )}
             </button>
-            {errorMessage && (
-              <p role="alert" className="text-sm font-semibold text-red-700">{errorMessage}</p>
-            )}
-
-            {/* Progress Card */}
-            <div className="bg-bg-surface border border-border rounded-2xl p-5 shadow-2xs space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                  Общий прогресс
-                </span>
-                <span className="text-base font-black text-brand">{overallProgress}%</span>
-              </div>
-              <div className="w-full bg-bg-primary h-2.5 rounded-full overflow-hidden border border-border/50">
-                <div 
-                  className="bg-brand h-full transition-all duration-500 ease-out rounded-full" 
-                  style={{ width: `${overallProgress}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-text-secondary font-medium pt-1">
-                <span>Задач: {completedTasks}/{totalTasks}</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-brand" /> {generatedPlan ? `${generatedPlan.weekly_hours} ч/неделю` : 'План до 11 класса'}
-                </span>
-              </div>
-            </div>
           </div>
+
+          {errorMessage && (
+            <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261" style={{ margin: 0 }}>{errorMessage}</p>
+          )}
+
         </header>
 
         {/* Main Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="roadmap-grid" style={{ marginTop: '24px' }}>
           
           {/* Left Column: Steps List (5 cols) */}
-          <div className="lg:col-span-5 space-y-4">
+          <div className="roadmap-steps">
             <span className="landing__section-label">
               Этапы дорожной карты
             </span>
 
-            <div className="relative border-l-2 border-border ml-4 pl-6 space-y-5 pt-2">
+            <div className="roadmap-timeline">
               {steps.map((step) => {
                 const isActive = step.id === activeStepId;
                 const isCompleted = step.status === 'completed';
                 const isInProgress = step.status === 'in_progress';
 
                 return (
-                  <div key={step.id} className="relative">
+                  <div key={step.id} className="roadmap-timeline__item">
                     {/* Timeline Dot */}
                     <div 
-                      className={`absolute -left-[31px] top-4 w-4 h-4 rounded-full border-2 transition-all ${
-                        isCompleted
-                          ? 'bg-brand border-brand text-text-inverse'
-                          : isInProgress
-                          ? 'bg-bg-surface border-brand ring-4 ring-brand/20'
-                          : 'bg-bg-surface border-border'
-                      }`}
+                      className={`roadmap-timeline__dot${isCompleted ? ' roadmap-timeline__dot--completed' : isInProgress ? ' roadmap-timeline__dot--active' : ''}`}
                     />
 
                     {/* Step Card */}
                     <div
                       onClick={() => setActiveStepId(step.id)}
-                      className={`p-5 rounded-2xl border cursor-pointer transition-all duration-200 ${
-                        isActive
-                          ? 'bg-bg-surface border-brand shadow-xs translate-x-1'
-                          : 'bg-bg-surface/60 border-border hover:border-brand/40 hover:bg-bg-surface'
-                      }`}
+                      className={`roadmap-step${isActive ? ' roadmap-step--active' : ''}`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-brand-light px-2.5 py-1 rounded-lg border border-brand/20">
+                      <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-a77ed4d908">
+                        <span className="tw-1dc571a360 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-84c2118f8b tw-0b91436deb tw-660d2effb8 tw-5f22e64f22 tw-ca6bcd4b6f tw-8609a13c3e">
                           {step.phase}
                         </span>
-                        <span className="text-xs font-semibold text-text-secondary">
+                        <span className="tw-359090c2d5 tw-e83a7042bc tw-16720c5987">
                           {step.estimatedTime}
                         </span>
                       </div>
 
-                      <h3 className="text-base font-black text-text-primary mb-3">
+                      <h3 className="tw-4ee734926f tw-7fbb85697d tw-5358eecb47 tw-1bb883263e">
                         {step.title}
                       </h3>
 
-                      <div className="flex items-center justify-between text-xs font-semibold text-text-secondary pt-3 border-t border-border">
+                      <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-359090c2d5 tw-e83a7042bc tw-16720c5987 tw-ce335a8e4f tw-b950dda299 tw-18049387f0">
                         <span>Задачи: {step.tasks.filter(t => t.completed).length}/{step.tasks.length}</span>
-                        <span className="text-brand font-bold">
+                        <span className="tw-17d820623e tw-69450ef148">
                           Impact: {step.impactScore}/100
                         </span>
                       </div>
@@ -520,20 +450,20 @@ export const Roadmap: React.FC = () => {
           </div>
 
           {/* Right Column: Active Step Details (7 cols) */}
-          <div className="lg:col-span-7 bg-bg-surface border border-border rounded-3xl p-6 md:p-8 space-y-6 shadow-2xs sticky top-6">
+          <div className="roadmap-details">
             
             {/* Step Header */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-brand">
+            <div className="tw-6ed543e2fb">
+              <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb">
+                <span className="tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-17d820623e">
                   Детализация: {activeStep.phase}
                 </span>
-                <span className={`text-xs px-3 py-1 rounded-full font-bold border ${
-                  activeStep.status === 'completed'
-                    ? 'bg-brand-light border-brand/30 text-brand'
-                    : activeStep.status === 'in_progress'
-                    ? 'bg-brand border-brand text-text-primary'
-                    : 'bg-bg-primary border-border text-text-secondary'
+                <span className={`tw-359090c2d5 tw-0e17f2bd90 tw-660d2effb8 tw-ac204c1088 tw-69450ef148 tw-ca6bcd4b6f ${
+                  activeStep.status === "completed"
+                    ? "tw-84c2118f8b tw-5c5681dfff tw-17d820623e"
+                    : activeStep.status === "in_progress"
+                    ? "tw-da1032643a tw-9c9f7fcae1 tw-5358eecb47"
+                    : "tw-6a2c73aab2 tw-18049387f0 tw-16720c5987"
                 }`}>
                   {activeStep.status === 'completed' && 'Завершено'}
                   {activeStep.status === 'in_progress' && 'В процессе'}
@@ -541,136 +471,96 @@ export const Roadmap: React.FC = () => {
                 </span>
               </div>
 
-              <h2 className="text-2xl md:text-3xl font-black text-text-primary">
+              <h2 className="tw-3febee094e tw-c58992ca23 tw-7fbb85697d tw-5358eecb47">
                 {activeStep.title}
               </h2>
-              <p className="text-text-secondary text-sm md:text-base leading-relaxed font-medium">
+              <p className="tw-16720c5987 tw-fc7473ca09 tw-cd83ad2f11 tw-6b189c6eda tw-2689f39580">
                 {activeStep.description}
               </p>
             </div>
 
             {/* AI Insights / Key Metrics Card */}
-            <div className="bg-brand-light border border-brand/30 rounded-2xl p-4 flex items-start gap-3">
-              <Zap className="w-5 h-5 text-brand shrink-0 mt-0.5" />
-              <div className="text-xs sm:text-sm text-text-primary font-medium leading-relaxed">
+            <div className="tw-84c2118f8b tw-ca6bcd4b6f tw-5c5681dfff tw-68f2db624d tw-8e63407b5c tw-60fbb77139 tw-60541e1e26 tw-1004c0c395">
+              <Zap className="tw-72470489ff tw-cd0d9c512c tw-17d820623e tw-012fbd121f tw-15e1b1f444" />
+              <div className="tw-359090c2d5 tw-e2327d1428 tw-5358eecb47 tw-2689f39580 tw-6b189c6eda">
                 {isGenerated ? (
                   <>
-                    <strong className="font-bold text-brand-hover">Период плана:</strong> с {generatedPlan?.start_grade} по 11 класс, учебные годы {generatedPlan?.start_academic_year} — {generatedPlan?.end_academic_year}.
+                    <strong className="tw-69450ef148 tw-93914e0db1">Период плана:</strong> с {generatedPlan?.start_grade} по 11 класс, учебные годы {generatedPlan?.start_academic_year} — {generatedPlan?.end_academic_year}.
                   </>
                 ) : (
                   <>
-                    <strong className="font-bold text-brand-hover">Инструкция:</strong> Нажмите «Сгенерировать roadmap», чтобы развернуть структуру академического плана `p_001`.
+                    <strong className="tw-69450ef148 tw-93914e0db1">Инструкция:</strong> Нажмите «Сгенерировать план», чтобы развернуть структуру академического плана.
                   </>
                 )}
               </div>
             </div>
 
             {/* Tasks Checklist */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-2">
-                <Target className="w-4 h-4 text-brand" />
+            <div className="tw-6ed543e2fb">
+              <h3 className="tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90">
+                <Target className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" />
                 Задачи и чекпоинты этапа
               </h3>
 
-              <div className="space-y-2">
+              <div className="tw-6f7e013d64">
                 {activeStep.tasks.map((task) => (
-                  <div key={task.id} className="space-y-2">
+                  <div key={task.id} className="tw-6f7e013d64">
                     <div
                       onClick={() => toggleTask(activeStep.id, task.id)}
                       aria-disabled={updatingTaskID !== null}
-                      className={`flex items-center justify-between gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      className={`tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-1004c0c395 tw-56796a90be tw-a217b4eaa9 tw-ca6bcd4b6f tw-3451683673 tw-0fe7d7d814 ${
                         task.completed
-                          ? 'bg-bg-primary/60 border-border text-text-secondary'
-                          : 'bg-bg-primary border-border text-text-primary hover:border-brand/50'
-                      } ${updatingTaskID === task.id ? 'opacity-60' : ''}`}
+                          ? "tw-a52c3cf85c tw-18049387f0 tw-16720c5987"
+                          : "tw-6a2c73aab2 tw-18049387f0 tw-5358eecb47 tw-7ec4acdb08"
+                      } ${updatingTaskID === task.id ? "tw-f2868c227f" : ''}`}
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="tw-60fbb77139 tw-7e0b7cdf1a tw-3960ffc248 tw-1004c0c395">
                         {task.completed ? (
-                          <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
+                          <CheckCircle2 className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e tw-012fbd121f" />
                         ) : (
-                          <Circle className="w-4 h-4 text-text-secondary shrink-0" />
+                          <Circle className="tw-dc7972ebf3 tw-11e59c6d5f tw-16720c5987 tw-012fbd121f" />
                         )}
-                        <div className="min-w-0">
-                          <span className={`text-sm ${task.completed ? 'line-through font-normal' : 'font-bold'}`}>
+                        <div className="tw-7e0b7cdf1a">
+                          <span className={`tw-fc7473ca09 ${task.completed ? "tw-093ca5623c tw-8ecebc9f80" : "tw-69450ef148"}`}>
                             {task.title}
                           </span>
-                          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-text-secondary">
-                            <span>{task.task_type || 'other'}</span>
-                            <span>Оценка: {task.estimated_minutes ?? '—'} мин</span>
-                            {task.actual_minutes !== undefined && <span>Факт: {task.actual_minutes} мин</span>}
-                          </div>
+                          <span className="task-type-tag">{taskTypeLabel(task.task_type)}</span>
                         </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-xs font-semibold text-text-secondary bg-bg-surface px-2 py-1 rounded-md border border-border">
-                          {task.duration}
-                        </span>
-                        {!task.completed && (
-                          <button
-                            type="button"
-                            onClick={(event) => { event.stopPropagation(); void startTask(activeStep.id, task.id); }}
-                            disabled={startingTaskID === task.id}
-                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors ${task.started_at ? 'border-brand/40 bg-brand-light text-brand' : 'border-border text-text-secondary hover:border-brand hover:text-brand'}`}
-                          >
-                            <Timer className="h-3.5 w-3.5" />
-                            {task.started_at ? 'Таймер идёт' : 'Старт'}
-                          </button>
-                        )}
                       </div>
                     </div>
 
-                    <div className="ml-6 space-y-2 border-l border-border pl-3">
+                    <div className="tw-ccdfe155b2 tw-6f7e013d64 tw-d4f78465b3 tw-18049387f0 tw-81976f3f2c">
                       {(task.micro_steps ?? []).map((microStep) => (
-                        <div key={microStep.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bg-primary px-3 py-2">
+                        <div key={microStep.id} className="tw-60fbb77139 tw-1eb5c6df38 tw-3960ffc248 tw-8ef2268efb tw-77a2a20e90 tw-5f22e64f22 tw-6a2c73aab2 tw-0e17f2bd90 tw-03b4dd7f17">
                           <button
                             type="button"
                             onClick={() => void toggleMicroStep(activeStep.id, task.id, microStep)}
                             disabled={updatingMicroStepID === microStep.id}
-                            className="inline-flex min-w-0 items-center gap-2 text-left text-xs font-semibold text-text-primary disabled:opacity-60"
+                            className="tw-52083e7da4 tw-7e0b7cdf1a tw-3960ffc248 tw-77a2a20e90 tw-2eba0d65d0 tw-359090c2d5 tw-e83a7042bc tw-5358eecb47 tw-d463b66401"
                           >
                             {microStep.completed
-                              ? <CheckCircle2 className="h-4 w-4 shrink-0 text-brand" />
-                              : <Circle className="h-4 w-4 shrink-0 text-text-secondary" />}
-                            <span className={microStep.completed ? 'line-through text-text-secondary' : ''}>{microStep.title}</span>
-                            <span className="text-text-secondary">{microStep.actual_minutes ?? microStep.estimated_minutes ?? '—'} мин</span>
+                              ? <CheckCircle2 className="tw-11e59c6d5f tw-dc7972ebf3 tw-012fbd121f tw-17d820623e" />
+                              : <Circle className="tw-11e59c6d5f tw-dc7972ebf3 tw-012fbd121f tw-16720c5987" />}
+                            <span className={microStep.completed ? "tw-093ca5623c tw-16720c5987" : ''}>{microStep.title}</span>
                           </button>
-                          {!microStep.completed && (
-                            <button
-                              type="button"
-                              onClick={() => void startMicroStep(activeStep.id, task.id, microStep.id)}
-                              disabled={updatingMicroStepID === microStep.id}
-                              className="text-[11px] font-bold text-brand hover:underline disabled:opacity-60"
-                            >
-                              {microStep.started_at ? 'Таймер идёт' : 'Старт'}
-                            </button>
-                          )}
                         </div>
                       ))}
 
                       {creatingMicroStepFor === task.id ? (
-                        <form onSubmit={(event) => void addMicroStep(event, activeStep.id, task.id)} className="flex flex-wrap items-center gap-2">
+                        <form onSubmit={(event) => void addMicroStep(event, activeStep.id, task.id)} className="tw-60fbb77139 tw-1eb5c6df38 tw-3960ffc248 tw-77a2a20e90">
                           <input
                             aria-label="Название микрошагa"
                             value={microStepTitle}
                             onChange={(event) => setMicroStepTitle(event.target.value)}
                             maxLength={500}
                             placeholder="Новый микрошаг"
-                            className="min-w-0 flex-1 rounded-lg border border-border bg-bg-surface px-3 py-2 text-xs"
+                            className="tw-7e0b7cdf1a tw-36e579c0b4 tw-5f22e64f22 tw-ca6bcd4b6f tw-18049387f0 tw-48a2a9e0eb tw-0e17f2bd90 tw-03b4dd7f17 tw-359090c2d5"
                             required
                           />
-                          <input
-                            aria-label="Оценка времени в минутах"
-                            type="number"
-                            min={1}
-                            value={microStepMinutes}
-                            onChange={(event) => setMicroStepMinutes(event.target.value)}
-                            className="w-20 rounded-lg border border-border bg-bg-surface px-2 py-2 text-xs"
-                            required
-                          />
-                          <button type="submit" disabled={updatingMicroStepID === `new:${task.id}`} className="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-text-primary disabled:opacity-60">
+                          <button type="submit" disabled={updatingMicroStepID === `new:${task.id}`} className="tw-5f22e64f22 tw-da1032643a tw-0e17f2bd90 tw-03b4dd7f17 tw-359090c2d5 tw-69450ef148 tw-5358eecb47 tw-d463b66401">
                             Добавить
                           </button>
-                          <button type="button" onClick={() => setCreatingMicroStepFor(null)} className="px-2 py-2 text-xs text-text-secondary hover:text-text-primary">
+                          <button type="button" onClick={() => setCreatingMicroStepFor(null)} className="tw-d5eab218aa tw-03b4dd7f17 tw-359090c2d5 tw-16720c5987 tw-1852007365">
                             Отмена
                           </button>
                         </form>
@@ -679,9 +569,9 @@ export const Roadmap: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setCreatingMicroStepFor(task.id)}
-                            className="inline-flex items-center gap-1 px-1 py-1 text-xs font-bold text-brand hover:underline"
+                            className="tw-52083e7da4 tw-3960ffc248 tw-44ee8ba0a4 tw-d8e0e382c6 tw-660d2effb8 tw-359090c2d5 tw-69450ef148 tw-17d820623e tw-f673f4a7d0"
                           >
-                            <Plus className="h-3.5 w-3.5" /> Добавить микрошаг
+                            <Plus className="tw-7fc7f732bf tw-bf600f8e02" /> Добавить микрошаг
                           </button>
                         )
                       )}
@@ -692,18 +582,18 @@ export const Roadmap: React.FC = () => {
             </div>
 
             {/* Key Deliverables / Artifacts */}
-            <div className="pt-4 border-t border-border space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-brand" />
+            <div className="tw-173fa8f067 tw-b950dda299 tw-18049387f0 tw-6ed543e2fb">
+              <h3 className="tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90">
+                <BookOpen className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" />
                 Ожидаемые результаты (Key Deliverables)
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="tw-60fbb77139 tw-1eb5c6df38 tw-77a2a20e90">
                 {activeStep.artifacts.map((artifact, idx) => (
                   <span 
                     key={idx}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bg-primary border border-border text-xs font-bold text-text-primary"
+                    className="tw-52083e7da4 tw-3960ffc248 tw-58284b4ea5 tw-0e17f2bd90 tw-ec0091ee00 tw-a217b4eaa9 tw-6a2c73aab2 tw-ca6bcd4b6f tw-18049387f0 tw-359090c2d5 tw-69450ef148 tw-5358eecb47"
                   >
-                    <ChevronRight className="w-3.5 h-3.5 text-brand" />
+                    <ChevronRight className="tw-bf600f8e02 tw-7fc7f732bf tw-17d820623e" />
                     {artifact}
                   </span>
                 ))}
@@ -711,12 +601,12 @@ export const Roadmap: React.FC = () => {
             </div>
 
             {/* Action CTA Button */}
-            <div className="pt-2">
+            <div className="tw-f46b61a9b3">
               <button
                 type="button"
                 onClick={() => void addActiveStepToKanban()}
                 disabled={isAddingToKanban || !generatedPlan}
-                className="landing__primary-button w-full disabled:cursor-not-allowed disabled:opacity-60"
+                className="landing__primary-button tw-6da6a3c3f7 tw-5f533b3a7d tw-d463b66401"
               >
                 <span>
                   {isAddingToKanban
@@ -732,6 +622,72 @@ export const Roadmap: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Modal Dialog for Preferences */}
+      {isModalOpen && (
+        <div className="roadmap-modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="roadmap-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="roadmap-modal__header">
+              <div className="roadmap-modal__title-wrap">
+                <Wand2 className="roadmap-modal__icon" />
+                <h2>Параметры генерации</h2>
+              </div>
+              <button 
+                type="button" 
+                className="roadmap-modal__close" 
+                onClick={() => setIsModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleGenerateRoadmap} className="roadmap-modal__body">
+              <label htmlFor="modal-preferences" className="roadmap-modal__label">
+                Дополнительные пожелания и предпочтения
+              </label>
+              <textarea
+                id="modal-preferences"
+                value={preferences}
+                onChange={(e) => setPreferences(e.target.value)}
+                maxLength={500}
+                placeholder="Укажите ваши интересы, желаемые олимпиады или направления (например: фокус на Machine Learning, подбор стажировок, олимпиады по CS)..."
+                className="roadmap-modal__textarea"
+                rows={4}
+                autoFocus
+              />
+
+              <div className="roadmap-modal__footer">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="roadmap-modal__btn-secondary"
+                  disabled={isGenerating}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="landing__primary-button roadmap-modal__btn-primary"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="roadmap-spinner" />
+                      <span>Генерация...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 size={16} />
+                      <span>Сгенерировать</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

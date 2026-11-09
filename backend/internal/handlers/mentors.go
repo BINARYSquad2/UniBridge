@@ -64,10 +64,9 @@ func (h Mentors) authenticatedUserID(r *http.Request) (string, error) {
 
 	return sub, nil
 }
-
 func (h Mentors) current(w http.ResponseWriter, r *http.Request) (authUser, bool) {
 	var u authUser
-	id, err := h.authenticatedUserID(r)
+	id, err := authenticatedUserID(r, h.JWTSecret)
 	if err != nil {
 		writeAuthError(w, 401, "Сессия истекла. Войдите снова.")
 		return u, false
@@ -83,12 +82,10 @@ func (h Mentors) current(w http.ResponseWriter, r *http.Request) (authUser, bool
 	}
 	return u, true
 }
-
 func jsonResult(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
 }
-
 func (h Mentors) Me(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		writeAuthError(w, 405, "method not allowed")
@@ -121,11 +118,11 @@ func (h Mentors) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := h.DB.QueryContext(r.Context(), `
-	SELECT u.id::text,u.full_name,COALESCE(p.bio,''),COALESCE(p.subjects,'{}'),
-	(SELECT count(*) FROM (SELECT unnest(COALESCE(p.subjects,'{}')) INTERSECT SELECT unnest(s.interests)) common) AS matches
-	FROM users u LEFT JOIN mentor_profiles p ON p.user_id=u.id
-	LEFT JOIN student_profiles s ON s.user_id=$1
-	WHERE u.role='mentor' ORDER BY matches DESC,u.full_name,u.id`, u.ID)
+ SELECT u.id::text,u.full_name,COALESCE(p.bio,''),COALESCE(p.subjects,'{}'),
+ (SELECT count(*) FROM (SELECT unnest(COALESCE(p.subjects,'{}')) INTERSECT SELECT unnest(s.interests)) common) AS matches
+ FROM users u LEFT JOIN mentor_profiles p ON p.user_id=u.id
+ LEFT JOIN student_profiles s ON s.user_id=$1
+ WHERE u.role='mentor' ORDER BY matches DESC,u.full_name,u.id`, u.ID)
 	if err != nil {
 		writeAuthError(w, 500, "Не удалось загрузить менторов")
 		return
@@ -168,12 +165,12 @@ func (h Mentors) Requests(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		rows, err := h.DB.QueryContext(r.Context(), `
-		SELECT q.id::text,q.student_id::text,q.mentor_id::text,s.full_name,m.full_name,q.message,q.status,
-		COALESCE(p.school_grade,0),COALESCE(p.interests,'{}'),q.created_at
-		FROM mentorship_requests q JOIN users s ON s.id=q.student_id JOIN users m ON m.id=q.mentor_id
-		LEFT JOIN student_profiles p ON p.user_id=s.id
-		WHERE ($2='student' AND q.student_id=$1) OR ($2='mentor' AND q.mentor_id=$1)
-		ORDER BY q.created_at DESC`, u.ID, u.Role)
+ SELECT q.id::text,q.student_id::text,q.mentor_id::text,s.full_name,m.full_name,q.message,q.status,
+ COALESCE(p.school_grade,0),COALESCE(p.interests,'{}'),q.created_at
+ FROM mentorship_requests q JOIN users s ON s.id=q.student_id JOIN users m ON m.id=q.mentor_id
+ LEFT JOIN student_profiles p ON p.user_id=s.id
+ WHERE ($2='student' AND q.student_id=$1) OR ($2='mentor' AND q.mentor_id=$1)
+ ORDER BY q.created_at DESC`, u.ID, u.Role)
 		if err != nil {
 			writeAuthError(w, 500, "Не удалось загрузить заявки")
 			return
@@ -213,7 +210,7 @@ func (h Mentors) Requests(w http.ResponseWriter, r *http.Request) {
 		}
 		var id string
 		err := h.DB.QueryRowContext(r.Context(), `INSERT INTO mentorship_requests(student_id,mentor_id,message)
-		SELECT $1,id,$3 FROM users WHERE id::text=$2 AND role='mentor' RETURNING id::text`, u.ID, in.MentorID, in.Message).Scan(&id)
+ SELECT $1,id,$3 FROM users WHERE id::text=$2 AND role='mentor' RETURNING id::text`, u.ID, in.MentorID, in.Message).Scan(&id)
 		if errors.Is(err, sql.ErrNoRows) {
 			writeAuthError(w, 404, "Ментор не найден")
 			return
@@ -244,7 +241,7 @@ func (h Mentors) Requests(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		res, err := h.DB.ExecContext(r.Context(), `UPDATE mentorship_requests SET status=$3
-		WHERE id::text=$1 AND status='pending' AND (($4='mentor' AND mentor_id=$2) OR ($4='student' AND student_id=$2))`, in.ID, u.ID, in.Status, u.Role)
+ WHERE id::text=$1 AND status='pending' AND (($4='mentor' AND mentor_id=$2) OR ($4='student' AND student_id=$2))`, in.ID, u.ID, in.Status, u.Role)
 		if err != nil {
 			var pe *pq.Error
 			if errors.As(err, &pe) && pe.Code == "23505" {

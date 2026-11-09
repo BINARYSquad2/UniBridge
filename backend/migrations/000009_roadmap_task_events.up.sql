@@ -1,5 +1,5 @@
 -- Журнал событий: только INSERT, UPDATE/DELETE в коде не использовать
-CREATE TABLE roadmap_task_events (
+CREATE TABLE IF NOT EXISTS roadmap_task_events (
     id BIGSERIAL PRIMARY KEY,
     roadmap_task_id UUID NOT NULL REFERENCES roadmap_tasks(id) ON DELETE CASCADE,
     roadmap_plan_id UUID NOT NULL REFERENCES roadmap_plans(id) ON DELETE CASCADE,
@@ -12,7 +12,7 @@ CREATE TABLE roadmap_task_events (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_roadmap_task_events_plan_created
+CREATE INDEX IF NOT EXISTS idx_roadmap_task_events_plan_created
     ON roadmap_task_events (roadmap_plan_id, created_at);
-CREATE INDEX idx_roadmap_task_events_task_created
+CREATE INDEX IF NOT EXISTS idx_roadmap_task_events_task_created
     ON roadmap_task_events (roadmap_task_id, created_at);

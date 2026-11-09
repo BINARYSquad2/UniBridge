@@ -1,67 +1,70 @@
 import React, { useState, useEffect } from 'react';
+import '../styles/Kanban.css';
 import { useLocation } from 'react-router-dom';
+import '../styles/Landing.css';
+import '../styles/TaskTypeTag.css';
 import { 
-  Kanban, 
-  Play, 
-  Pause, 
-  RotateCcw,
+  Target, 
   CheckCircle2, 
   Circle, 
-  Timer, 
-  Check,
-  Flame,
   Plus,
-  LayoutGrid
+  Sparkles,
+  FileText,
+  Link as LinkIcon,
+  X,
+  AlertCircle,
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import { taskTypeLabel } from '../lib/taskTypes';
 
 interface MicroStep {
   id: string;
   title: string;
-  estimated_minutes?: number;
   completed: boolean;
-  actual_minutes?: number;
+}
+
+interface TaskArtifact {
+  type: 'link' | 'explanation';
+  value: string;
 }
 
 interface Task {
   id: string;
   title: string;
-  duration: string;
   task_type: string;
   status: 'todo' | 'in_progress' | 'done';
   micro_steps: MicroStep[];
+  artifact?: TaskArtifact;
 }
-
-interface KanbanColumn {
-  id: 'todo' | 'in_progress' | 'done';
-  title: string;
-}
-
-const COLUMNS: KanbanColumn[] = [
-  { id: 'todo', title: 'К выполнению' },
-  { id: 'in_progress', title: 'В процессе' },
-  { id: 'done', title: 'Готово' },
-];
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
+const MAX_DAILY_TASKS = 5;
 
 export const KanbanBoard: React.FC = () => {
   const location = useLocation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<'kanban' | 'timer'>('kanban');
-
+  
+  // Стейт сворачивания описания/шапки
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  
+  // Модалка создания задачи
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskDuration, setNewTaskDuration] = useState('1 час');
   const [newTaskType, setNewTaskType] = useState('development');
-  const [newTaskMicroSteps, setNewTaskMicroSteps] = useState<string>('Настроить окружение\nНаписать базовый код\nПротестировать');
+  const [newTaskMicroSteps, setNewTaskMicroSteps] = useState<string>('Изучить требования\nНаписать код\nПроверить');
+  
+  // Стейт генерации из Roadmap с помощью AI
+  const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
 
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [activeMicroStep, setActiveMicroStep] = useState<MicroStep | null>(null);
-  const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
-  const [targetSeconds, setTargetSeconds] = useState<number>(25 * 60);
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  // Модалка артефакта при завершении микро-шага
+  const [completingTarget, setCompletingTarget] = useState<{ task: Task; microStep: MicroStep } | null>(null);
+  const [artifactType, setArtifactType] = useState<'explanation' | 'link'>('explanation');
+  const [artifactValue, setArtifactValue] = useState('');
+  const [artifactError, setArtifactError] = useState('');
 
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
@@ -72,35 +75,16 @@ export const KanbanBoard: React.FC = () => {
     }).then(async (response) => {
       const result = await response.json().catch(() => null) as Task[] | { error?: string } | null;
       if (!response.ok || !Array.isArray(result)) {
-        throw new Error(result && !Array.isArray(result) ? result.error : 'Не удалось загрузить задачи Kanban');
+        throw new Error(result && !Array.isArray(result) ? result.error : 'Не удалось загрузить задачи');
       }
       setTasks(result);
     }).catch((error: unknown) => {
       if (error instanceof DOMException && error.name === 'AbortError') return;
-      setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить задачи Kanban');
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить задачи');
     }).finally(() => setIsLoadingTasks(false));
 
     return () => controller.abort();
   }, []);
-
-  useEffect(() => {
-    let interval: number;
-    if (isTimerRunning) {
-      interval = window.setInterval(() => {
-        setSecondsElapsed((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
-
-  const startTimerForMicroStep = (task: Task, microStep: MicroStep) => {
-    setActiveTask(task);
-    setActiveMicroStep(microStep);
-    setSecondsElapsed(0);
-    setTargetSeconds((microStep.estimated_minutes ?? 25) * 60);
-    setIsTimerRunning(true);
-    setActiveTab('timer');
-  };
 
   const saveTask = async (task: Task): Promise<boolean> => {
     const accessToken = localStorage.getItem('access_token');
@@ -113,12 +97,15 @@ export const KanbanBoard: React.FC = () => {
       const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/kanban/tasks/${encodeURIComponent(task.id)}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: task.status, micro_steps: task.micro_steps }),
+        body: JSON.stringify({ 
+          status: task.status, 
+          micro_steps: task.micro_steps,
+          artifact: task.artifact 
+        }),
       });
       const result = await response.json().catch(() => null) as Task & { error?: string } | null;
       if (!response.ok || !result?.id) throw new Error(result?.error ?? 'Не удалось сохранить задачу');
       setTasks((previous) => previous.map((item) => item.id === result.id ? result : item));
-      setActiveTask((previous) => previous?.id === result.id ? result : previous);
       return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить задачу');
@@ -126,43 +113,130 @@ export const KanbanBoard: React.FC = () => {
     }
   };
 
-  const stopTimerAndSave = async () => {
-    if (!activeTask || !activeMicroStep) return;
-    const spentMinutes = Math.max(1, Math.round(secondsElapsed / 60));
-    const task = tasks.find((item) => item.id === activeTask.id);
-    if (!task) return;
-    const microSteps = task.micro_steps.map((micro) => micro.id === activeMicroStep.id
-      ? { ...micro, completed: true, actual_minutes: spentMinutes }
-      : micro);
-    const status = microSteps.every((micro) => micro.completed) ? 'done' : 'in_progress';
-    if (!await saveTask({ ...task, status, micro_steps: microSteps })) return;
+  const handleToggleMicroStep = (task: Task, microStep: MicroStep) => {
+    if (!microStep.completed) {
+      setCompletingTarget({ task, microStep });
+      setArtifactValue('');
+      setArtifactError('');
+      return;
+    }
 
-    setIsTimerRunning(false);
-    setActiveTask(null);
-    setActiveMicroStep(null);
-    setSecondsElapsed(0);
+    const microSteps = task.micro_steps.map((item) => item.id === microStep.id
+      ? { ...item, completed: false }
+      : item);
+    
+    const anyDone = microSteps.some((item) => item.completed);
+    const nextStatus = anyDone ? 'in_progress' : 'todo';
+
+    void saveTask({ ...task, status: nextStatus, micro_steps: microSteps });
+  };
+
+  const confirmMicroStepCompletion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completingTarget) return;
+
+    const { task, microStep } = completingTarget;
+    const trimmed = artifactValue.trim();
+
+    if (artifactType === 'link') {
+      try {
+        new URL(trimmed);
+      } catch {
+        setArtifactError('Укажите корректную ссылку (http:// или https://)');
+        return;
+      }
+    } else if (trimmed.length < 5) {
+      setArtifactError('Опишите результат подробнее (мин. 5 символов).');
+      return;
+    }
+
+    const microSteps = task.micro_steps.map((item) => item.id === microStep.id
+      ? { ...item, completed: true }
+      : item);
+
+    const allDone = microSteps.every((item) => item.completed);
+    const nextStatus = allDone ? 'done' : 'in_progress';
+
+    const updatedTask: Task = {
+      ...task,
+      status: nextStatus,
+      micro_steps: microSteps,
+      artifact: { type: artifactType, value: trimmed }
+    };
+
+    const success = await saveTask(updatedTask);
+    if (success) {
+      setCompletingTarget(null);
+    }
+  };
+
+  const handleGenerateRoadmapPlan = async () => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
+      setErrorMessage('Сессия истекла. Войдите снова.');
+      return;
+    }
+
+    setIsGeneratingRoadmap(true);
+    setErrorMessage('');
+
+    try {
+      await new Promise(r => setTimeout(r, 700));
+
+      const mockRoadmapTask = {
+        title: 'Реализовать защиту роутов и JWT авторизацию',
+        task_type: 'backend',
+        micro_steps: [
+          { id: crypto.randomUUID(), title: 'Написать middleware проверки токена', completed: false },
+          { id: crypto.randomUUID(), title: 'Интегрировать в Go роутер', completed: false },
+          { id: crypto.randomUUID(), title: 'Протестировать через Postman', completed: false }
+        ],
+        status: 'todo'
+      };
+
+      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/kanban/tasks`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(mockRoadmapTask),
+      });
+
+      const result = await response.json().catch(() => null) as Task & { error?: string } | null;
+      if (!response.ok || !result?.id) throw new Error(result?.error ?? 'Не удалось сгенерировать план из Roadmap');
+      
+      setTasks((previous) => [result, ...previous]);
+      setIsTaskModalOpen(false);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось получить план от AI');
+    } finally {
+      setIsGeneratingRoadmap(false);
+    }
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
 
+    if (tasks.length >= MAX_DAILY_TASKS) {
+      setErrorMessage(`Достигнут лимит фокуса: не более ${MAX_DAILY_TASKS} целей на день.`);
+      return;
+    }
+
     const microStepsList: MicroStep[] = newTaskMicroSteps
       .split('\n')
       .filter((s) => s.trim().length > 0)
       .map((s) => ({
         id: crypto.randomUUID(),
-        title: s.trim(),
-        estimated_minutes: 20,
+        title: s.replace(/^[-*]\s*/, '').trim(),
         completed: false,
       }));
 
     const taskInput = {
       title: newTaskTitle.trim(),
-      duration: newTaskDuration.trim() || '1 час',
       task_type: newTaskType,
-      micro_steps: microStepsList.length > 0 ? microStepsList : [{ id: crypto.randomUUID(), title: 'Основная задача', estimated_minutes: 30, completed: false }],
+      micro_steps: microStepsList.length > 0 ? microStepsList : [{ id: crypto.randomUUID(), title: 'Основной шаг', completed: false }],
+      status: 'todo',
     };
+
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
     try {
@@ -182,174 +256,193 @@ export const KanbanBoard: React.FC = () => {
     }
   };
 
-  const adjustTime = (minutes: number) => {
-    setTargetSeconds((prev) => Math.max(60, prev + minutes * 60));
-  };
+  const allMicroSteps = tasks.flatMap((task) => 
+    task.micro_steps.map((micro) => ({
+      ...micro,
+      parentTask: task,
+    }))
+  );
 
-  const resetTimer = () => {
-    setSecondsElapsed(0);
-    setIsTimerRunning(false);
-  };
+  const todoSteps = allMicroSteps.filter((m) => !m.completed && m.parentTask.status !== 'done');
+  const doneSteps = allMicroSteps.filter((m) => m.completed || m.parentTask.status === 'done');
 
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    e.dataTransfer.setData('text/plain', taskId);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, targetColumn: 'todo' | 'in_progress' | 'done') => {
-    e.preventDefault();
-    const taskId = e.dataTransfer.getData('text/plain');
-    if (!taskId) return;
-
-    const task = tasks.find((item) => item.id === taskId);
-    if (task && task.status !== targetColumn) void saveTask({ ...task, status: targetColumn });
-  };
-
-  const formatTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remainingSecs = secs % 60;
-    return `${String(mins).padStart(2, '0')}:${String(remainingSecs).padStart(2, '0')}`;
-  };
-
-  // Гигантский размер радиуса кругового таймера
-  const progressPercent = Math.min(100, (secondsElapsed / targetSeconds) * 100);
-  const circleRadius = 140;
-  const circleCircumference = 2 * Math.PI * circleRadius;
-  const strokeDashoffset = circleCircumference - (progressPercent / 100) * circleCircumference;
+  const totalStepsCount = allMicroSteps.length;
+  const completedStepsCount = doneSteps.length;
+  const progressPercentage = totalStepsCount > 0 ? Math.round((completedStepsCount / totalStepsCount) * 100) : 0;
 
   return (
-    <div className="landing-page min-h-screen">
+    <div className="landing-page tw-793346c736" style={{ paddingBottom: '32px', paddingTop: '84px' }}>
       <div className="landing__hero-decoration" />
       
-      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-8 py-12 space-y-10">
+      <div className="tw-6da6a3c3f7 tw-c0491287cc tw-0e12dc7de9 tw-f0faeb26d6 tw-8fb6f42ff2 tw-61357c0c2f tw-8107d37319" style={{ padding: '16px 24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* Шапка и переключатель */}
-        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-border">
-          <div className="space-y-3">
-            <div className="landing__badge">
-              <Kanban className="w-4 h-4 text-brand" />
-              <span>Фокус-режим и задачи</span>
+        {/* Хедер фокуса с возможностью сворачивания */}
+        <header className="tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div>
+              <div className="landing__badge" style={{ marginBottom: '4px', padding: '2px 8px', fontSize: '11px' }}>
+                <Layers className="tw-dc7972ebf3 tw-11e59c6d5f tw-17d820623e" style={{ width: '12px', height: '12px' }} />
+                <span>Микро-шаги фокуса ({tasks.length} задач / {totalStepsCount} шагов)</span>
+              </div>
+              <h1 className="tw-751fb0d102 tw-c3c844442d tw-7fbb85697d" style={{ fontSize: '20px', margin: 0 }}>
+                Доска микро-шагов
+              </h1>
             </div>
-            <h1 className="landing__title text-3xl md:text-4xl font-black">
-              Доска и <span className="landing__title-accent">таймер фокуса</span>
-            </h1>
-            <p className="landing__description text-left mx-0 max-w-xl">
-              Управляйте процессом с помощью Kanban-доски или переключайтесь на полноэкранный таймер микрошагов.
-            </p>
-          </div>
 
-          <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsTaskModalOpen(true)}
-              className="landing__primary-button px-4 py-2.5 text-xs flex items-center gap-2"
+              type="button"
+              onClick={() => setIsHeaderCollapsed((prev) => !prev)}
+              style={{
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: '#475569',
+                fontWeight: 500
+              }}
             >
-              <Plus className="w-4 h-4" /> Добавить задачу
+              {isHeaderCollapsed ? (
+                <>Развернуть описание <ChevronDown size={14} /></>
+              ) : (
+                <>Свернуть описание <ChevronUp size={14} /></>
+              )}
             </button>
-
-            <div className="flex items-center gap-1 bg-bg-surface p-1.5 rounded-2xl border border-border shadow-2xs">
-              <button
-                onClick={() => setActiveTab('kanban')}
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all ${
-                  activeTab === 'kanban' ? 'bg-brand text-text-inverse shadow-xs' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <LayoutGrid className="w-4 h-4" /> Kanban
-              </button>
-              <button
-                onClick={() => setActiveTab('timer')}
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all ${
-                  activeTab === 'timer' ? 'bg-brand text-text-inverse shadow-xs' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <Timer className="w-4 h-4" /> Таймер
-              </button>
-            </div>
           </div>
+
+          <button
+            onClick={() => {
+              if (tasks.length >= MAX_DAILY_TASKS) {
+                setErrorMessage(`Достигнут лимит фокуса: не более ${MAX_DAILY_TASKS} целей на день.`);
+                return;
+              }
+              setIsTaskModalOpen(true);
+            }}
+            className="landing__primary-button tw-f0faeb26d6 tw-e7ee55ac7f tw-359090c2d5 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90"
+            style={{ padding: '8px 16px', fontSize: '13px' }}
+          >
+            <Plus className="tw-dc7972ebf3 tw-11e59c6d5f" style={{ width: '14px', height: '14px' }} /> Добавить цель с шагами
+          </button>
         </header>
 
-        {errorMessage && <p role="alert" className="text-sm font-semibold text-red-700">{errorMessage}</p>}
-        {typeof (location.state as { importedCount?: unknown } | null)?.importedCount === 'number' && (
-          <p role="status" className="text-sm font-semibold text-text-secondary">
-            {(location.state as { importedCount: number }).importedCount > 0
-              ? `Добавлено задач из Roadmap: ${(location.state as { importedCount: number }).importedCount}`
-              : 'Задачи этого этапа уже есть в Kanban'}
-          </p>
+        {/* Сворачиваемая область описания и прогресс-бара */}
+        {!isHeaderCollapsed && (
+          <div style={{ transition: 'all 0.3s ease', marginBottom: '20px' }}>
+            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>
+              Разбивайте глобальные цели на атомарные микро-шаги. Отмечайте выполненные задачи и прикрепляйте артефакты для контроля прогресса.
+            </p>
+            {totalStepsCount > 0 && (
+              <div style={{ background: '#f1f5f9', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ flex: 1, background: '#e2e8f0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${progressPercentage}%`, background: '#111', height: '100%', transition: 'width 0.3s ease' }} />
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>
+                  Выполнено микро-шагов: {completedStepsCount} из {totalStepsCount} ({progressPercentage}%)
+                </span>
+              </div>
+            )}
+          </div>
         )}
+
+        {errorMessage && <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261" style={{ fontSize: '12px', margin: '4px 0' }}>{errorMessage}</p>}
 
         {/* Модальное окно создания задачи */}
         {isTaskModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-            <div className="bg-bg-surface border border-border rounded-3xl p-6 max-w-md w-full shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="text-base font-black text-text-primary">Добавить новую задачу</h3>
-                <button onClick={() => setIsTaskModalOpen(false)} className="text-text-secondary hover:text-text-primary font-bold">✕</button>
+          <div className="tw-7bc555991d tw-7b7df0449b tw-181b286668 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-fd9dca32f4 tw-1839ae9d4d tw-8e63407b5c">
+            <div className="tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-ea189a088a tw-0478c89a15 tw-9794ab4509 tw-6da6a3c3f7 tw-a739868a85 tw-3e7ce58d64" style={{ maxWidth: '460px', width: '100%', padding: '20px' }}>
+              <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-65fdbade20 tw-18049387f0 tw-7fcf9124b5" style={{ marginBottom: '12px' }}>
+                <h3 className="tw-4ee734926f tw-7fbb85697d tw-5358eecb47" style={{ fontSize: '15px', margin: 0 }}>Добавление цели и шагов</h3>
+                <button onClick={() => setIsTaskModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={16} /></button>
               </div>
 
-              <form onSubmit={handleCreateTask} className="space-y-4">
+              <div style={{ marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  disabled={isGeneratingRoadmap}
+                  onClick={handleGenerateRoadmapPlan}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #111 0%, #333 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <Sparkles size={15} />
+                  {isGeneratingRoadmap ? 'Анализирую Roadmap...' : 'Составить план с помощью AI (из Roadmap)'}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0', color: '#94a3b8', fontSize: '11px' }}>
+                <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+                <span>или вручную</span>
+                <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+              </div>
+
+              <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <label className="text-xs font-bold text-text-secondary block mb-1">Название задачи</label>
+                  <label style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}>Название задачи (родительская цель)</label>
                   <input
                     type="text"
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="Например: Настроить CI/CD пайплайн"
-                    className="w-full rounded-xl border border-border bg-bg-primary px-3.5 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none"
+                    placeholder="Например: Архитектура бэкенда"
+                    style={{ width: '100%', fontSize: '13px', padding: '8px', borderRadius: 6, border: '1px solid #ccc' }}
                     required
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-text-secondary block mb-1">Длительность</label>
-                    <input
-                      type="text"
-                      value={newTaskDuration}
-                      onChange={(e) => setNewTaskDuration(e.target.value)}
-                      placeholder="2 часа"
-                      className="w-full rounded-xl border border-border bg-bg-primary px-3.5 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-text-secondary block mb-1">Тип</label>
-                    <select
-                      value={newTaskType}
-                      onChange={(e) => setNewTaskType(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-bg-primary px-3 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none"
-                    >
-                      <option value="development">Development</option>
-                      <option value="backend">Backend</option>
-                      <option value="database">Database</option>
-                      <option value="presentation">Presentation</option>
-                    </select>
-                  </div>
+                <div>
+                  <label style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}>Направление (Тег)</label>
+                  <select
+                    value={newTaskType}
+                    onChange={(e) => setNewTaskType(e.target.value)}
+                    style={{ width: '100%', fontSize: '13px', padding: '6px', borderRadius: 6, border: '1px solid #ccc' }}
+                  >
+                    <option value="development">Development</option>
+                    <option value="backend">Backend</option>
+                    <option value="database">Database</option>
+                    <option value="presentation">Presentation</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-text-secondary block mb-1">Микрошаги (каждый с новой строки)</label>
+                  <label style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}>Микро-шаги (каждый с новой строки)</label>
                   <textarea
-                    rows={4}
+                    rows={3}
                     value={newTaskMicroSteps}
                     onChange={(e) => setNewTaskMicroSteps(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-bg-primary px-3.5 py-2.5 text-xs text-text-primary focus:border-brand focus:outline-none resize-none"
+                    style={{ width: '100%', fontSize: '13px', padding: '8px', borderRadius: 6, border: '1px solid #ccc' }}
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
                   <button
                     type="button"
                     onClick={() => setIsTaskModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-text-secondary hover:text-text-primary"
+                    style={{ padding: '6px 12px', fontSize: '12px', background: '#eee', border: 'none', borderRadius: 6, cursor: 'pointer' }}
                   >
                     Отмена
                   </button>
                   <button
                     type="submit"
-                    className="landing__primary-button px-5 py-2 text-xs"
+                    className="landing__primary-button"
+                    style={{ padding: '6px 14px', fontSize: '12px' }}
                   >
-                    Создать задачу
+                    Добавить цель
                   </button>
                 </div>
               </form>
@@ -357,214 +450,224 @@ export const KanbanBoard: React.FC = () => {
           </div>
         )}
 
-        {/* Основной контент */}
-        {activeTab === 'kanban' ? isLoadingTasks ? (
-          <div className="flex min-h-60 items-center justify-center text-sm font-semibold text-text-secondary">Загружаем задачи...</div>
-        ) : (
-          /* Kanban Доска */
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-            {COLUMNS.map((col) => {
-              const columnTasks = tasks.filter((task) => task.status === col.id);
+        {/* Модальное окно артефакта */}
+        {completingTarget && (
+          <div className="tw-7bc555991d tw-7b7df0449b tw-181b286668 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-fd9dca32f4 tw-1839ae9d4d tw-8e63407b5c">
+            <form onSubmit={confirmMicroStepCompletion} className="tw-48a2a9e0eb tw-ca6bcd4b6f tw-18049387f0 tw-ea189a088a tw-0478c89a15 tw-9794ab4509 tw-6da6a3c3f7 tw-a739868a85 tw-3e7ce58d64" style={{ maxWidth: '400px', width: '100%', padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h3 style={{ fontSize: '15px', margin: 0 }}>Результат микро-шага</h3>
+                <button type="button" onClick={() => setCompletingTarget(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={16} /></button>
+              </div>
 
-              return (
-                <div
-                  key={col.id}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, col.id)}
-                  className="bg-bg-surface border border-border rounded-3xl p-5 flex flex-col min-h-[540px] shadow-2xs"
+              <p style={{ fontSize: '12px', color: '#666', marginBottom: 12 }}>
+                Для шага <strong>«{completingTarget.microStep.title}»</strong> (задача: <em>{completingTarget.task.title}</em>) прикрепите артефакт или вывод.
+              </p>
+
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setArtifactType('explanation')}
+                  style={{
+                    flex: 1, padding: '6px', borderRadius: 6, border: 'none', fontSize: '12px', cursor: 'pointer',
+                    background: artifactType === 'explanation' ? '#111' : '#f1f1f3',
+                    color: artifactType === 'explanation' ? '#fff' : '#333'
+                  }}
                 >
-                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-border">
-                    <span className="text-xs font-black uppercase tracking-wider text-text-secondary">
-                      {col.title}
-                    </span>
-                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-bg-primary border border-border text-brand">
-                      {columnTasks.length}
-                    </span>
-                  </div>
+                  <FileText size={12} style={{ display: 'inline', marginRight: 4 }} /> Вывод
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArtifactType('link')}
+                  style={{
+                    flex: 1, padding: '6px', borderRadius: 6, border: 'none', fontSize: '12px', cursor: 'pointer',
+                    background: artifactType === 'link' ? '#111' : '#f1f1f3',
+                    color: artifactType === 'link' ? '#fff' : '#333'
+                  }}
+                >
+                  <LinkIcon size={12} style={{ display: 'inline', marginRight: 4 }} /> Ссылка
+                </button>
+              </div>
 
-                  <div className="space-y-4 flex-1">
-                    {columnTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, task.id)}
-                        className="bg-bg-primary border border-border rounded-2xl p-4 shadow-2xs cursor-grab active:cursor-grabbing hover:border-brand/60 transition-all space-y-3"
+              {artifactType === 'explanation' ? (
+                <textarea
+                  rows={2}
+                  value={artifactValue}
+                  onChange={(e) => setArtifactValue(e.target.value)}
+                  placeholder="Что сделано / инсайт (мин. 5 символов)..."
+                  style={{ width: '100%', fontSize: '12px', padding: '8px', borderRadius: 6, border: '1px solid #ccc', marginBottom: 8 }}
+                />
+              ) : (
+                <input
+                  type="url"
+                  value={artifactValue}
+                  onChange={(e) => setArtifactValue(e.target.value)}
+                  placeholder="https://github.com/..."
+                  style={{ width: '100%', fontSize: '12px', padding: '8px', borderRadius: 6, border: '1px solid #ccc', marginBottom: 8 }}
+                />
+              )}
+
+              {artifactError && <div style={{ color: '#dc2626', fontSize: '11px', marginBottom: 8 }}>{artifactError}</div>}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                <button type="button" onClick={() => setCompletingTarget(null)} style={{ padding: '6px 10px', fontSize: '12px', background: '#eee', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Отмена</button>
+                <button type="submit" style={{ padding: '6px 12px', fontSize: '12px', background: '#111', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Подтвердить ✓</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Канбан-лейаут для микро-шагов */}
+        {isLoadingTasks ? (
+          <div style={{ textAlign: 'center', padding: '30px', fontSize: '13px', color: '#666' }}>Загружаем микро-шаги...</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', alignItems: 'start' }}>
+            
+            {/* Колонка: К выполнению */}
+            <div style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Circle size={14} style={{ color: '#64748b' }} /> К выполнению
+                </h3>
+                <span style={{ background: '#e2e8f0', color: '#475569', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px' }}>
+                  {todoSteps.length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {todoSteps.map((micro) => (
+                  <div
+                    key={micro.id}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span className="task-type-tag" style={{ fontSize: '9px', padding: '2px 5px', borderRadius: '4px' }}>
+                        {taskTypeLabel(micro.parentTask.task_type)}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                        {micro.parentTask.title}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMicroStep(micro.parentTask, micro)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', marginTop: '2px' }}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-sm font-black text-text-primary leading-snug">
-                            {task.title}
-                          </h3>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand-light text-brand shrink-0">
-                            {task.duration}
-                          </span>
-                        </div>
+                        <Circle size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                      </button>
+                      <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: 500, lineHeight: 1.3 }}>
+                        {micro.title}
+                      </span>
+                    </div>
 
-                        <div className="space-y-2 pt-2 border-t border-border/80">
-                          <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider block">
-                            Микрошаги:
-                          </span>
-                          {task.micro_steps.map((micro) => (
-                            <div
-                              key={micro.id}
-                              className="flex items-center justify-between gap-2 p-2 rounded-xl bg-bg-surface border border-border text-xs"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                {micro.completed ? (
-                                  <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
-                                ) : (
-                                  <Circle className="w-4 h-4 text-text-secondary shrink-0" />
-                                )}
-                                <span className={`truncate ${micro.completed ? 'line-through text-text-secondary' : 'font-semibold text-text-primary'}`}>
-                                  {micro.title}
-                                </span>
-                              </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px', paddingTop: '6px', borderTop: '1px solid #f1f5f9' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMicroStep(micro.parentTask, micro)}
+                        style={{ background: '#111', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                      >
+                        Завершить шаг ✓
+                      </button>
+                    </div>
+                  </div>
+                ))}
 
-                              {!micro.completed && (
-                                <button
-                                  onClick={() => startTimerForMicroStep(task, micro)}
-                                  className="px-2 py-1 rounded-lg bg-brand text-text-inverse hover:bg-brand-hover transition-colors shrink-0 text-[10px] font-bold flex items-center gap-1"
-                                >
-                                  <Play className="w-2.5 h-2.5 fill-current" /> Старт
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                {todoSteps.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: '8px' }}>
+                    Все микро-шаги выполнены! 🎉
+                  </div>
+                )}
+              </div>
+            </div>
 
-                    {columnTasks.length === 0 && (
-                      <div className="h-40 flex items-center justify-center text-xs text-text-secondary/60 border-2 border-dashed border-border rounded-2xl">
-                        Перетащите карточку сюда
+            {/* Колонка: Выполнено */}
+            <div style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={14} style={{ color: '#16a34a' }} /> Выполнено
+                </h3>
+                <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px' }}>
+                  {doneSteps.length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {doneSteps.map((micro) => (
+                  <div
+                    key={micro.id}
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <span className="task-type-tag" style={{ fontSize: '9px', padding: '2px 5px', borderRadius: '4px' }}>
+                        {taskTypeLabel(micro.parentTask.task_type)}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, textDecoration: 'line-through' }}>
+                        {micro.parentTask.title}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMicroStep(micro.parentTask, micro)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', marginTop: '2px' }}
+                      >
+                        <CheckCircle2 size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
+                      </button>
+                      <span style={{ fontSize: '13px', color: '#64748b', textDecoration: 'line-through', lineHeight: 1.3 }}>
+                        {micro.title}
+                      </span>
+                    </div>
+
+                    {micro.parentTask.artifact && (
+                      <div style={{ marginTop: '4px', padding: '6px 8px', background: '#edf2f7', borderRadius: '6px', fontSize: '11px' }}>
+                        <span style={{ fontWeight: 500, color: '#475569' }}>Артефакт: </span>
+                        {micro.parentTask.artifact.type === 'link' ? (
+                          <a href={micro.parentTask.artifact.value} target="_blank" rel="noreferrer" style={{ color: '#2563eb', wordBreak: 'break-all' }}>
+                            {micro.parentTask.artifact.value}
+                          </a>
+                        ) : (
+                          <span style={{ color: '#334155' }}>{micro.parentTask.artifact.value}</span>
+                        )}
                       </div>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* РАЗДЕЛИМ НА ДВЕ ПЛАШКИ: СЛЕВА ТЕКСТ, СПРАВА ГИГАНТСКИЙ ТАЙМЕР */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-            
-            {/* Левая плашка: Информация о задаче и микрошаге */}
-            <div className="lg:col-span-6 bg-bg-surface border border-border rounded-3xl p-8 shadow-xl flex flex-col justify-between space-y-6">
-              {activeMicroStep ? (
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-light text-brand text-xs font-black uppercase tracking-wider">
-                    <Flame className="w-4 h-4" /> Активный фокус
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">Микрошаг</span>
-                    <h2 className="text-2xl font-black text-text-primary leading-tight">{activeMicroStep.title}</h2>
-                  </div>
-                  <div className="space-y-1 pt-4 border-t border-border">
-                    <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">Родительская задача</span>
-                    <p className="text-base font-bold text-text-primary">{activeTask?.title}</p>
-                    <p className="text-xs text-text-secondary">Длительность: {activeTask?.duration}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3 my-auto text-center py-12">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-text-secondary block">
-                    Ожидание фокуса
-                  </span>
-                  <h2 className="text-2xl font-black text-text-primary">Микрошаг не выбран</h2>
-                  <p className="text-sm text-text-secondary max-w-sm mx-auto">
-                    Перейдите на Kanban-доску и нажмите «Старт» на любом микрошаге задачи, чтобы запустить сессию.
-                  </p>
-                </div>
-              )}
+                ))}
 
-              {activeMicroStep && (
-                <button
-                  onClick={stopTimerAndSave}
-                  className="landing__primary-button w-full py-3.5 text-sm flex items-center justify-center gap-2 shadow-md"
-                >
-                  <Check className="w-5 h-5" /> Завершить микрошаг
-                </button>
-              )}
-            </div>
-
-            {/* Правая плашка: Гигантский круглый таймер и управление */}
-            <div className="lg:col-span-6 bg-bg-surface border border-border rounded-3xl p-8 shadow-xl flex flex-col items-center justify-center text-center space-y-6">
-              
-              <div className="relative flex items-center justify-center">
-                <svg className="w-72 h-72 transform -rotate-90">
-                  <circle
-                    cx="144"
-                    cy="144"
-                    r={circleRadius}
-                    className="stroke-bg-primary"
-                    strokeWidth="16"
-                    fill="transparent"
-                  />
-                  <circle
-                    cx="144"
-                    cy="144"
-                    r={circleRadius}
-                    className="stroke-brand transition-all duration-500"
-                    strokeWidth="16"
-                    strokeDasharray={circleCircumference}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                    fill="transparent"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-6xl font-black text-text-primary font-mono tracking-tighter">
-                    {formatTime(secondsElapsed)}
-                  </span>
-                  <span className="text-xs font-bold text-text-secondary uppercase tracking-wider mt-2">
-                    цель: {Math.round(targetSeconds / 60)} мин
-                  </span>
-                </div>
-              </div>
-
-              {/* Панель регуляции времени */}
-              <div className="flex items-center justify-center gap-3 w-full">
-                <button 
-                  onClick={() => adjustTime(-5)} 
-                  className="px-4 py-2 bg-bg-primary border border-border rounded-xl text-xs font-bold text-text-secondary hover:text-text-primary"
-                >
-                  -5 мин
-                </button>
-                <button 
-                  onClick={() => adjustTime(5)} 
-                  className="px-4 py-2 bg-bg-primary border border-border rounded-xl text-xs font-bold text-text-secondary hover:text-text-primary"
-                >
-                  +5 мин
-                </button>
-                {isTimerRunning ? (
-                  <button
-                    onClick={() => setIsTimerRunning(false)}
-                    className="p-2.5 bg-bg-primary border border-border rounded-xl text-text-primary hover:bg-bg-secondary"
-                    title="Пауза"
-                  >
-                    <Pause className="w-5 h-5" />
-                  </button>
-                ) : (
-                  activeMicroStep && (
-                    <button
-                      onClick={() => setIsTimerRunning(true)}
-                      className="p-2.5 bg-brand text-text-inverse rounded-xl hover:bg-brand-hover"
-                      title="Продолжить"
-                    >
-                      <Play className="w-5 h-5 fill-current" />
-                    </button>
-                  )
+                {doneSteps.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: '8px' }}>
+                    Пока нет завершенных шагов
+                  </div>
                 )}
-                <button
-                  onClick={resetTimer}
-                  className="p-2.5 bg-bg-primary border border-border rounded-xl text-text-secondary hover:text-text-primary"
-                  title="Сбросить"
-                >
-                  <RotateCcw className="w-5 h-5" />
-                </button>
               </div>
-
             </div>
 
+          </div>
+        )}
+
+        {tasks.length === 0 && !isLoadingTasks && (
+          <div style={{ textAlign: 'center', padding: '40px 20px', fontSize: '13px', color: '#64748b', border: '1px dashed #cbd5e1', borderRadius: '12px', background: '#fafafa', marginTop: '20px' }}>
+            <AlertCircle size={24} style={{ margin: '0 auto 8px', color: '#94a3b8' }} />
+            На сегодня микроцелей пока нет. Нажмите «Добавить цель с шагами» или сгенерируйте план из Roadmap с помощью AI.
           </div>
         )}
 

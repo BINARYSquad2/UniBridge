@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Menu, X, GraduationCap, LogOut, User } from 'lucide-react';
+import { User, Check, ChevronDown, LogOut, Menu, X, GraduationCap, Palette } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useSession } from '../lib/session';
+import '../styles/Navbar.css';
 
 const NAV_LINKS = [
   { label: 'Возможности', to: '/#features' },
@@ -8,15 +10,31 @@ const NAV_LINKS = [
   { label: 'О платформе', to: '/#stats' },
 ];
 
+const COLOR_THEMES = [
+  { id: 'bridge', name: 'Bridge', description: 'Теплая классика' },
+  { id: 'ocean', name: 'Океан', description: 'Светлая морская' },
+  { id: 'lavender', name: 'Лаванда', description: 'Светлая мягкая' },
+  { id: 'midnight', name: 'Midnight', description: 'Темная янтарная' },
+  { id: 'forest', name: 'Forest', description: 'Темная природная' },
+] as const;
+
+type ColorTheme = (typeof COLOR_THEMES)[number]['id'];
+
 export const Navbar: React.FC = () => {
+  const { logout } = useSession();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => Boolean(localStorage.getItem('access_token'))
   );
-
-  const location = useLocation();
-  const navigate = useNavigate();
+  const [colorTheme, setColorTheme] = useState<ColorTheme>(() => {
+    const savedTheme = localStorage.getItem('unibridge-theme');
+    return COLOR_THEMES.find(({ id }) => id === savedTheme)?.id ?? 'bridge';
+  });
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -37,8 +55,13 @@ export const Navbar: React.FC = () => {
     return () => window.removeEventListener('storage', syncAuthState);
   }, [location.pathname]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = colorTheme;
+    localStorage.setItem('unibridge-theme', colorTheme);
+  }, [colorTheme]);
+
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
+    logout();
     setIsAuthenticated(false);
     setIsMobileMenuOpen(false);
     navigate('/');
@@ -46,55 +69,100 @@ export const Navbar: React.FC = () => {
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
+  const navigationLinks = [
+    ...NAV_LINKS,
+    ...(isAuthenticated
+      ? [{ label: 'Аналитика', to: '/analytics' }]
+      : []),
+  ];
+
+  const currentTheme = COLOR_THEMES.find(({ id }) => id === colorTheme) ?? COLOR_THEMES[0];
+  const themePicker = (placement: 'desktop' | 'mobile') => (
+    <div className={`navbar__theme-picker navbar__theme-picker--${placement}`}>
+      <button
+        type="button"
+        className="navbar__theme-trigger"
+        aria-label={`Цветовая тема: ${currentTheme.name}`}
+        aria-expanded={isThemeMenuOpen}
+        aria-controls={`navbar-theme-menu-${placement}`}
+        onClick={() => setIsThemeMenuOpen((open) => !open)}
+      >
+        <Palette aria-hidden="true" />
+        <span className={`navbar__theme-swatch navbar__theme-swatch--${colorTheme}`} aria-hidden="true" />
+        <span className="navbar__theme-current">{currentTheme.name}</span>
+        <ChevronDown className="navbar__theme-chevron" aria-hidden="true" />
+      </button>
+
+      {isThemeMenuOpen && (
+        <div
+          id={`navbar-theme-menu-${placement}`}
+          className="navbar__theme-menu"
+          role="group"
+          aria-label="Выберите цветовую тему"
+        >
+          <p className="navbar__theme-menu-title">Цветовая тема</p>
+          {COLOR_THEMES.map(({ id, name, description }) => (
+            <button
+              key={id}
+              type="button"
+              className={`navbar__theme-option${colorTheme === id ? ' navbar__theme-option--selected' : ''}`}
+              aria-pressed={colorTheme === id}
+              onClick={() => {
+                setColorTheme(id);
+                setIsThemeMenuOpen(false);
+              }}
+            >
+              <span className={`navbar__theme-swatch navbar__theme-swatch--${id}`} aria-hidden="true" />
+              <span className="navbar__theme-option-copy">
+                <span className="navbar__theme-option-name">{name}</span>
+                <span className="navbar__theme-option-description">{description}</span>
+              </span>
+              {colorTheme === id && <Check className="navbar__theme-check" aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
-        isScrolled
-          ? 'bg-bg-surface/90 backdrop-blur-md border-b border-border shadow-sm'
-          : 'bg-transparent border-b border-transparent'
-      }`}
+      className={`navbar${isScrolled ? ' navbar--scrolled' : ''}`}
     >
       <div
-        className={`mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-[height] duration-300 ${
-          isScrolled ? 'h-16' : 'h-20'
+        className={`navbar__container${
+          isScrolled ? ' navbar__container--scrolled' : ''
         }`}
       >
-        {/* Логотип */}
-        <Link to="/#main" className="flex items-center gap-3 group shrink-0">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-text-primary font-black text-xl shadow-sm transition-transform duration-300 group-hover:scale-105">
+        <Link to="/#main" className="navbar__brand">
+          <div className="navbar__brand-icon">
             <GraduationCap />
           </div>
 
-          <span className="text-xl font-black tracking-tight text-text-primary">
-            Uni<span className="text-brand">Bridge</span>
+          <span className="navbar__brand-name">
+            Uni<span className="navbar__brand-accent">Bridge</span>
           </span>
         </Link>
 
-        {/* Десктопное меню */}
-        <nav className="hidden md:flex items-center gap-8 lg:gap-12">
-          {[
-            ...NAV_LINKS,
-            ...(isAuthenticated
-              ? [{ label: 'Аналитика', to: '/analytics' }]
-              : []),
-          ].map((item) => (
+        <nav className="navbar__desktop-nav">
+          {navigationLinks.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className="text-sm font-bold text-text-secondary hover:text-brand transition-colors duration-200 whitespace-nowrap"
+              className="navbar__desktop-link"
             >
               {item.label}
             </Link>
           ))}
         </nav>
 
-        {/* Кнопки действий (Десктоп) */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="navbar__desktop-actions">
+          {themePicker('desktop')}
           {isAuthenticated ? (
             <>
               <Link
                 to="/profile"
-                className="flex items-center gap-2 rounded-xl bg-bg-surface border border-border px-4 py-2.5 text-sm font-bold text-text-primary shadow-xs transition-all duration-200 hover:border-brand/40 active:scale-95"
+                className="navbar__button-primary"
               >
                 <User className="h-4 w-4 text-brand" />
                 Личный кабинет
@@ -102,9 +170,9 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-2.5 text-sm font-bold text-red-600 transition-all duration-200 hover:bg-red-500/20 active:scale-95"
+                className="navbar__logout-button"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut />
                 Выйти
               </button>
             </>
@@ -126,33 +194,27 @@ export const Navbar: React.FC = () => {
           )}
         </div>
 
-        {/* Мобильная кнопка меню */}
         <button
           type="button"
           onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-          className="md:hidden p-2 rounded-xl border border-border bg-bg-surface text-text-primary hover:bg-brand-light hover:border-brand/40 transition-colors"
+          className="navbar__menu-toggle"
           aria-label={isMobileMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
           aria-expanded={isMobileMenuOpen}
         >
-          {isMobileMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
+          {isMobileMenuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
-      {/* Мобильное выпадающее меню */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 right-0 px-4 pb-4 pt-2">
-          <div className="rounded-2xl border border-border bg-bg-surface p-6 shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
-            <nav className="flex flex-col gap-4">
+        <div className="navbar__mobile-menu">
+          <div className="navbar__mobile-panel">
+            <nav className="navbar__mobile-nav">
               {NAV_LINKS.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
                   onClick={closeMobileMenu}
-                  className="text-base font-bold text-text-primary hover:text-brand transition-colors py-1"
+                  className="navbar__mobile-link"
                 >
                   {item.label}
                 </Link>
@@ -162,48 +224,51 @@ export const Navbar: React.FC = () => {
                 <Link
                   to="/analytics"
                   onClick={closeMobileMenu}
-                  className="text-base font-bold text-text-primary hover:text-brand transition-colors py-1"
+                  className="navbar__mobile-link"
                 >
                   Аналитика
                 </Link>
               )}
 
-              <hr className="border-border my-2" />
+              {themePicker('mobile')}
+
+              <hr className="navbar__mobile-divider" />
 
               {isAuthenticated ? (
-                <>
+                <div className="navbar__mobile-actions">
                   <Link
                     to="/profile"
                     onClick={closeMobileMenu}
-                    className="text-center py-2.5 text-base font-bold text-text-primary border border-border rounded-xl hover:bg-bg-primary transition-colors"
+                    className="navbar__mobile-primary"
                   >
                     Личный кабинет
                   </Link>
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="text-center py-2.5 text-base font-bold text-red-600 bg-red-500/10 rounded-xl hover:bg-red-500/20 transition-colors"
+                    className="navbar__mobile-logout"
                   >
+                    <LogOut />
                     Выйти
                   </button>
-                </>
+                </div>
               ) : (
-                <>
+                <div className="navbar__mobile-actions">
                   <Link
                     to="/login"
                     onClick={closeMobileMenu}
-                    className="text-center py-2.5 text-base font-bold text-text-primary border border-border rounded-xl hover:bg-bg-primary transition-colors"
+                    className="navbar__mobile-primary navbar__mobile-login"
                   >
-                    Войти
+                    Авторизация
                   </Link>
                   <Link
                     to="/register"
                     onClick={closeMobileMenu}
-                    className="text-center py-2.5 text-base font-bold text-text-primary bg-brand rounded-xl hover:bg-brand-hover transition-colors shadow-xs"
+                    className="navbar__mobile-primary"
                   >
                     Начать бесплатно
                   </Link>
-                </>
+                </div>
               )}
             </nav>
           </div>

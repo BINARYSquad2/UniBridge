@@ -8,7 +8,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { useSession } from '../lib/session'
-
+import '../styles/CabinetNav.css'
 export function CabinetNav() {
   const { user } = useSession()
   const mentor = user?.role === 'mentor'

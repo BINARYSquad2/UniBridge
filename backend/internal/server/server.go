@@ -23,7 +23,14 @@ func New(cfg config.Config, db *sql.DB) *http.Server {
 
 	mux.HandleFunc("/api/v1/auth/register", auth.Register)
 	mux.HandleFunc("/api/v1/auth/login", auth.Login)
-
+	mux.HandleFunc("/api/v1/profile/me", auth.CurrentProfile)
+	mentors := handlers.Mentors{
+		DB:        db,
+		JWTSecret: []byte(cfg.AuthSecret),
+	}
+	mux.HandleFunc("/api/v1/mentors", mentors.List)
+	mux.HandleFunc("/api/v1/auth/me", mentors.Me)
+	mux.HandleFunc("/api/v1/mentorship/requests", mentors.Requests)
 	roadmap := handlers.Roadmap{
 		DB:        db,
 		JWTSecret: []byte(cfg.AuthSecret),
@@ -44,9 +51,7 @@ func New(cfg config.Config, db *sql.DB) *http.Server {
 	mux.HandleFunc("POST /api/v1/roadmap/generate", roadmap.Generate)
 	mux.HandleFunc("GET /api/v1/roadmap/current", roadmap.Current)
 	mux.HandleFunc("PATCH /api/v1/roadmap/tasks/{taskID}", roadmap.UpdateTask)
-	mux.HandleFunc("POST /api/v1/roadmap/tasks/{taskID}/start", roadmap.StartTask)
 	mux.HandleFunc("POST /api/v1/roadmap/tasks/{taskID}/micro-steps", roadmap.CreateMicroStep)
-	mux.HandleFunc("POST /api/v1/roadmap/micro-steps/{microStepID}/start", roadmap.StartMicroStep)
 	mux.HandleFunc("PATCH /api/v1/roadmap/micro-steps/{microStepID}", roadmap.UpdateMicroStep)
 	mux.HandleFunc("GET /api/v1/roadmap/metrics", roadmap.Metrics)
 

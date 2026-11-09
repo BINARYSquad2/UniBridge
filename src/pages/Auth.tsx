@@ -1,26 +1,11 @@
 import React, { useState } from 'react';
+import '../styles/Auth.css';
+import { useSession, type User } from '../lib/session';
+import { SUBJECT_DIRECTIONS } from '../lib/subjectDirections';
 import { useNavigate } from 'react-router-dom';
 
 type AuthMode = 'login' | 'register';
 type Role = 'student' | 'mentor';
-
-// Предметы и направления
-const SUBJECT_DIRECTIONS = [
-  'IT & Разработка',
-  'AI & Data Science',
-  'STEM & Инженерия',
-  'Наука & Исследования',
-  'Стажировки & Карьера',
-  'Экология & Sustainability',
-  'Медицина & Биотех',
-  'Бизнес & Предпринимательство',
-  'Юриспруденция & Law',
-  'Международные отношения',
-  'Экзамен SAT',
-  'Экзамен IELTS',
-  'Экзамен NUET',
-  'Олимпиады & Хакатоны',
-];
 
 // Навыки (для "Сильные стороны" и "Что улучшить")
 const SKILLS_LIST = [
@@ -225,27 +210,27 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
   };
 
   return (
-    <div className="min-h-screen w-full bg-bg-primary flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-20 left-1/2 -z-10 h-[400px] w-[400px] -translate-x-1/2 rounded-full bg-brand/15 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-10 -z-10 h-64 w-64 rounded-full bg-brand-hover/10 blur-3xl" />
+    <div className="tw-793346c736 tw-6da6a3c3f7 tw-6a2c73aab2 tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 tw-8e63407b5c tw-59c7996bbc tw-d89972fe17 tw-2cd02d11d1">
+      <div className="tw-a4326536b8 tw-da4dbfbc4f tw-bd25655a34 tw-e632769ad7 tw-0917b4a458 tw-d523403940 tw-dc45d79cca tw-efaa070148 tw-ac204c1088 tw-2be63f721e tw-4b5e775b14" />
+      <div className="tw-a4326536b8 tw-da4dbfbc4f tw-189f036c33 tw-741e864f7f tw-0917b4a458 tw-14ce684b98 tw-6ca625288b tw-ac204c1088 tw-48df15740e tw-4b5e775b14" />
 
       {onClose && (
         <button
           onClick={onClose}
-          className="absolute top-6 left-6 flex items-center gap-2 text-sm font-bold text-text-secondary hover:text-brand transition-colors"
+          className="tw-da4dbfbc4f tw-e9d6ffe0c5 tw-b80d184e01 tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90 tw-fc7473ca09 tw-69450ef148 tw-16720c5987 tw-f09cea7854 tw-ceb69a6b0e"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="tw-cd0d9c512c tw-72470489ff" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
           На главную
         </button>
       )}
 
-      <div className="w-full max-w-xl bg-bg-surface rounded-3xl border border-border/80 p-8 sm:p-10 shadow-xl transition-all relative z-10">
+      <div className="tw-6da6a3c3f7 tw-9ef2b581bf tw-48a2a9e0eb tw-ea189a088a tw-ca6bcd4b6f tw-c9ed8c5f79 tw-845f53365c tw-84d75d6c14 tw-a739868a85 tw-0fe7d7d814 tw-d89972fe17 tw-236812d64c">
         
         {mode === 'register' && formData.role === 'student' && (
-          <div className="mb-6">
-            <div className="flex justify-between text-xs font-bold text-text-secondary mb-2">
+          <div className="tw-b6777c6db9">
+            <div className="tw-60fbb77139 tw-8ef2268efb tw-359090c2d5 tw-69450ef148 tw-16720c5987 tw-a77ed4d908">
               <span>Шаг {step} из 6</span>
               <span>
                 {step === 1 && 'Аккаунт'}
@@ -256,10 +241,9 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                 {step === 6 && 'Портфолио'}
               </span>
             </div>
-            <div className="h-1.5 w-full bg-bg-primary rounded-full overflow-hidden">
+            <div className="tw-095acb2755 tw-6da6a3c3f7 tw-6a2c73aab2 tw-ac204c1088 tw-2cd02d11d1">
               <div
-                className="h-full bg-brand transition-all duration-300"
-                style={{ width: `${(step / 6) * 100}%` }}
+                className={`tw-668b21aa54 tw-da1032643a tw-0fe7d7d814 tw-7890552ecd progress-width--${Math.round((step / 6) * 100)}`}
               />
             </div>
           </div>
@@ -284,7 +268,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-text-primary font-black text-2xl shadow-xs mb-4">
             U
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-text-primary tracking-tight">
+          <h2 className="tw-3febee094e tw-b6496ebe70 tw-7fbb85697d tw-5358eecb47 tw-1d7f28b046">
             {mode === 'login' && 'С возвращением!'}
             {mode === 'register' && step === 1 && 'Создать аккаунт'}
             {mode === 'register' && formData.role === 'student' && step === 2 && 'В каком вы классе?'}
@@ -294,7 +278,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             {mode === 'register' && formData.role === 'student' && step === 6 && 'Этап портфолио'}
             {mode === 'register' && formData.role === 'mentor' && step === 2 && 'Выберите направления'}
           </h2>
-          <p className="text-sm font-medium text-text-secondary mt-2">
+          <p className="tw-fc7473ca09 tw-2689f39580 tw-16720c5987 tw-50d0d216a2">
             {mode === 'login' && 'Введите данные для входа в UniBridge'}
             {mode === 'register' && step === 1 && 'Присоединяйтесь к платформе менторства'}
             {mode === 'register' && formData.role === 'student' && step === 2 && 'Выберите класс с 7-го по 11-й'}
@@ -306,13 +290,13 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           </p>
         </div>
 
-        <form onSubmit={handleNext} className="space-y-5">
+        <form onSubmit={handleNext} className="tw-b43b4c086d">
           {step === 1 && (
             <>
               {mode === 'register' && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                    <label className="tw-0214b4b355 tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-d7c1392c7b">
                       Имя
                     </label>
                     <input
@@ -322,11 +306,11 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                       placeholder="Иван"
                       value={formData.name}
                       onChange={handleChange}
-                      className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors"
+                      className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-f0faeb26d6 tw-1b2d54a3fd tw-fc7473ca09 tw-e83a7042bc tw-5358eecb47 tw-e7708255fb tw-68308c6db2 tw-55d048ebfb tw-ceb69a6b0e"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                    <label className="tw-0214b4b355 tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-d7c1392c7b">
                       Фамилия
                     </label>
                     <input
@@ -338,14 +322,14 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                       placeholder="Иванов"
                       value={formData.surname}
                       onChange={handleChange}
-                      className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors"
+                      className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-f0faeb26d6 tw-1b2d54a3fd tw-fc7473ca09 tw-e83a7042bc tw-5358eecb47 tw-e7708255fb tw-68308c6db2 tw-55d048ebfb tw-ceb69a6b0e"
                     />
                   </div>
                 </>
               )}
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+                <label className="tw-0214b4b355 tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-d7c1392c7b">
                   Email
                 </label>
                 <input
@@ -355,22 +339,22 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                   placeholder="example@mail.com"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors"
+                  className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-f0faeb26d6 tw-1b2d54a3fd tw-fc7473ca09 tw-e83a7042bc tw-5358eecb47 tw-e7708255fb tw-68308c6db2 tw-55d048ebfb tw-ceb69a6b0e"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary">
+                <div className="tw-60fbb77139 tw-3960ffc248 tw-8ef2268efb tw-d7c1392c7b">
+                  <label className="tw-0214b4b355 tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987">
                     Пароль
                   </label>
                   {mode === 'login' && (
-                    <a href="#forgot" className="text-xs font-bold text-brand hover:underline">
+                    <a href="#forgot" className="tw-359090c2d5 tw-69450ef148 tw-17d820623e tw-f673f4a7d0">
                       Забыли?
                     </a>
                   )}
                 </div>
-                <div className="relative">
+                <div className="tw-d89972fe17">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
@@ -378,19 +362,19 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none transition-colors pr-10"
+                    className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-f0faeb26d6 tw-1b2d54a3fd tw-fc7473ca09 tw-e83a7042bc tw-5358eecb47 tw-e7708255fb tw-68308c6db2 tw-55d048ebfb tw-ceb69a6b0e tw-b700316d5e"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                    className="tw-da4dbfbc4f tw-c100b64c5c tw-d694ba66e3 tw-36b381be4d tw-16720c5987 tw-1852007365 tw-ceb69a6b0e"
                   >
                     {showPassword ? (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="tw-cd0d9c512c tw-72470489ff" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.018 10.018 0 013.68-.825c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m-2.112 1.341c-1.077.36-2.228.563-3.418.563a9.98 9.98 0 01-4.22-.924" />
                       </svg>
                     ) : (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="tw-cd0d9c512c tw-72470489ff" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
@@ -436,10 +420,21 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </>
           )}
 
-          {/* Шаг 2 для ученика: Класс */}
+          {mode === 'register' && formData.role === 'mentor' && (
+            <div className="tw-3e7ce58d64">
+              <label className="tw-0214b4b355 tw-69450ef148">О себе и опыте
+                <textarea name="bio" value={formData.bio} onChange={handleChange} required maxLength={4000} rows={3} placeholder="В чём вы можете помочь ученикам?" className="tw-50d0d216a2 tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-eb6e8b881a" />
+              </label>
+              <fieldset><legend className="tw-69450ef148 tw-a77ed4d908">Направления менторства</legend>
+                <div className="tw-60fbb77139 tw-1eb5c6df38 tw-77a2a20e90">{SUBJECT_DIRECTIONS.map(item => <label key={item} className="tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-7660b45090 tw-fc7473ca09"><input type="checkbox" checked={formData.interests.includes(item)} onChange={() => toggleTag('interests', item)} /> {item}</label>)}</div>
+                <p className="tw-50d0d216a2 tw-fc7473ca09 tw-16720c5987">Выберите хотя бы одно направление.</p>
+              </fieldset>
+            </div>
+          )}
+          {/* ЭКРАН 2: Класс */}
           {step === 2 && mode === 'register' && formData.role === 'student' && (
             <div>
-              <label htmlFor="schoolGrade" className="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-1.5">
+              <label htmlFor="schoolGrade" className="tw-0214b4b355 tw-359090c2d5 tw-69450ef148 tw-117ec720ea tw-09ace3a4d9 tw-16720c5987 tw-d7c1392c7b">
                 Класс
               </label>
               <select
@@ -448,7 +443,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                 required
                 value={formData.schoolGrade}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-border bg-bg-primary px-4 py-3 text-sm font-semibold text-text-primary focus:border-brand focus:outline-none transition-colors"
+                className="tw-6da6a3c3f7 tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-f0faeb26d6 tw-1b2d54a3fd tw-fc7473ca09 tw-e83a7042bc tw-5358eecb47 tw-68308c6db2 tw-55d048ebfb tw-ceb69a6b0e"
               >
                 {[7, 8, 9, 10, 11].map((grade) => (
                   <option key={grade} value={grade}>{grade} класс</option>
@@ -467,10 +462,10 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                     key={item}
                     type="button"
                     onClick={() => toggleTag('interests', item)}
-                    className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition-all ${
+                    className={`tw-a217b4eaa9 tw-ca6bcd4b6f tw-f0faeb26d6 tw-e7ee55ac7f tw-359090c2d5 tw-69450ef148 tw-0fe7d7d814 ${
                       isSelected
-                        ? 'border-brand bg-brand text-text-primary shadow-xs'
-                        : 'border-border bg-bg-primary text-text-secondary hover:border-brand/40 hover:text-text-primary'
+                        ? "tw-9c9f7fcae1 tw-da1032643a tw-5358eecb47 tw-cef5b893cf"
+                        : "tw-18049387f0 tw-6a2c73aab2 tw-16720c5987 tw-7ce289893d tw-1852007365"
                     }`}
                   >
                     {item}
@@ -480,9 +475,8 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             </div>
           )}
 
-          {/* Шаг 4 для ученика: Сильные стороны */}
-          {step === 4 && mode === 'register' && formData.role === 'student' && (
-            <div className="flex flex-wrap gap-2.5 max-h-[320px] overflow-y-auto p-1">
+          {step === 4 && mode === 'register' && (
+            <div className="tw-60fbb77139 tw-1eb5c6df38 tw-7e9a2a250c tw-fd9aebd23c tw-92bf82f493 tw-eb6a3cef96">
               {SKILLS_LIST.map((skill) => {
                 const isSelected = formData.strengths.includes(skill);
                 return (
@@ -490,10 +484,10 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                     key={skill}
                     type="button"
                     onClick={() => toggleTag('strengths', skill)}
-                    className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition-all ${
+                    className={`tw-a217b4eaa9 tw-ca6bcd4b6f tw-f0faeb26d6 tw-e7ee55ac7f tw-359090c2d5 tw-69450ef148 tw-0fe7d7d814 ${
                       isSelected
-                        ? 'border-brand bg-brand text-text-primary shadow-xs'
-                        : 'border-border bg-bg-primary text-text-secondary hover:border-brand/40 hover:text-text-primary'
+                        ? "tw-9c9f7fcae1 tw-da1032643a tw-5358eecb47 tw-cef5b893cf"
+                        : "tw-18049387f0 tw-6a2c73aab2 tw-16720c5987 tw-7ce289893d tw-1852007365"
                     }`}
                   >
                     {skill}
@@ -513,10 +507,10 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                     key={skill}
                     type="button"
                     onClick={() => toggleTag('weaknesses', skill)}
-                    className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition-all ${
+                    className={`tw-a217b4eaa9 tw-ca6bcd4b6f tw-f0faeb26d6 tw-e7ee55ac7f tw-359090c2d5 tw-69450ef148 tw-0fe7d7d814 ${
                       isSelected
-                        ? 'border-brand bg-brand text-text-primary shadow-xs'
-                        : 'border-border bg-bg-primary text-text-secondary hover:border-brand/40 hover:text-text-primary'
+                        ? "tw-9c9f7fcae1 tw-da1032643a tw-5358eecb47 tw-cef5b893cf"
+                        : "tw-18049387f0 tw-6a2c73aab2 tw-16720c5987 tw-7ce289893d tw-1852007365"
                     }`}
                   >
                     {skill}
@@ -535,19 +529,19 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                   <div
                     key={stage}
                     onClick={() => setFormData((prev) => ({ ...prev, portfolioStage: stage }))}
-                    className={`cursor-pointer rounded-2xl border p-4 text-sm font-semibold transition-all ${
+                    className={`tw-3451683673 tw-68f2db624d tw-ca6bcd4b6f tw-8e63407b5c tw-fc7473ca09 tw-e83a7042bc tw-0fe7d7d814 ${
                       isSelected
-                        ? 'border-brand bg-brand/10 text-text-primary shadow-xs'
-                        : 'border-border bg-bg-primary text-text-secondary hover:border-brand/40'
+                        ? "tw-9c9f7fcae1 tw-ce45d053a5 tw-5358eecb47 tw-cef5b893cf"
+                        : "tw-18049387f0 tw-6a2c73aab2 tw-16720c5987 tw-7ce289893d"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="tw-60fbb77139 tw-3960ffc248 tw-1004c0c395">
                       <div
-                        className={`h-4 w-4 rounded-full border flex items-center justify-center ${
-                          isSelected ? 'border-brand bg-brand' : 'border-border'
+                        className={`tw-11e59c6d5f tw-dc7972ebf3 tw-ac204c1088 tw-ca6bcd4b6f tw-60fbb77139 tw-3960ffc248 tw-86843cf1e2 ${
+                          isSelected ? "tw-9c9f7fcae1 tw-da1032643a" : "tw-18049387f0"
                         }`}
                       >
-                        {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-text-primary" />}
+                        {isSelected && <div className="tw-095acb2755 tw-c696a08909 tw-ac204c1088 tw-a2765f83f5" />}
                       </div>
                       <span>{stage}</span>
                     </div>
@@ -558,22 +552,22 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
           )}
 
           {errorMessage && (
-            <p role="alert" className="text-sm font-semibold text-red-600">
+            <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-421d458123">
               {errorMessage}
             </p>
           )}
           {successMessage && (
-            <p role="status" className="text-sm font-semibold text-green-700">
+            <p role="status" className="tw-fc7473ca09 tw-e83a7042bc tw-2c03cd7793">
               {successMessage}
             </p>
           )}
 
-          <div className="flex gap-3 pt-4">
+          <div className="tw-60fbb77139 tw-1004c0c395 tw-173fa8f067">
             {step > 1 && (
               <button
                 type="button"
                 onClick={handleBack}
-                className="w-1/3 rounded-xl border border-border bg-bg-primary py-3.5 text-sm font-bold text-text-primary transition-colors hover:bg-bg-surface"
+                className="tw-c76f96cfba tw-a217b4eaa9 tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-69e76918fe tw-fc7473ca09 tw-69450ef148 tw-5358eecb47 tw-ceb69a6b0e tw-24dc8f7d93"
               >
                 Назад
               </button>
@@ -581,7 +575,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 rounded-xl bg-brand py-3.5 text-base font-bold text-text-primary shadow-xs transition-all duration-200 hover:bg-brand-hover hover:shadow-md active:scale-98"
+              className="tw-36e579c0b4 tw-a217b4eaa9 tw-da1032643a tw-69e76918fe tw-4ee734926f tw-69450ef148 tw-5358eecb47 tw-cef5b893cf tw-0fe7d7d814 tw-625a4c3fbe tw-6dc89721e0 tw-9e85ac05ca tw-528e9016b2"
             >
               {isSubmitting
                 ? 'Отправка...'
@@ -599,7 +593,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
         </form>
 
         {step === 1 && (
-          <div className="mt-8 text-center text-xs font-semibold text-text-secondary">
+          <div className="tw-4e5d2af5fc tw-ca6bf63030 tw-359090c2d5 tw-e83a7042bc tw-16720c5987">
             {mode === 'login' ? (
               <>
                 Еще нет аккаунта?{' '}
@@ -611,7 +605,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                     setErrorMessage('');
                     navigate('/register');
                   }}
-                  className="font-bold text-brand hover:underline"
+                  className="tw-69450ef148 tw-17d820623e tw-f673f4a7d0"
                 >
                   Зарегистрироваться
                 </button>
@@ -627,7 +621,7 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
                     setErrorMessage('');
                     navigate('/login');
                   }}
-                  className="font-bold text-brand hover:underline"
+                  className="tw-69450ef148 tw-17d820623e tw-f673f4a7d0"
                 >
                   Войти
                 </button>

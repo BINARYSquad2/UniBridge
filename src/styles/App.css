@@ -1,0 +1,30 @@
+.route-status {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 8rem 1.5rem 2rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.route-status--error {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  color: #b42318;
+}
+
+.route-retry {
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-brand);
+  color: var(--color-text-inverse);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.route-retry:hover {
+  background: var(--color-brand-hover);
+  transform: translateY(-1px);
+}

@@ -1,0 +1,38 @@
+@reference "./index.css";
+
+.request-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.request-description[open] .request-preview {
+  display: none;
+}
+
+.tw-0ab8667228 { @apply mt-4; }
+.tw-1004c0c395 { @apply gap-3; }
+.tw-16720c5987 { @apply text-text-secondary; }
+.tw-170cee3ff4 { @apply break-words; }
+.tw-17d820623e { @apply text-brand; }
+.tw-18049387f0 { @apply border-border; }
+.tw-1eb5c6df38 { @apply flex-wrap; }
+.tw-3451683673 { @apply cursor-pointer; }
+.tw-359090c2d5 { @apply text-xs; }
+.tw-48a2a9e0eb { @apply bg-bg-surface; }
+.tw-5aae0fc8f2 { @apply self-start; }
+.tw-60fbb77139 { @apply flex; }
+.tw-751fb0d102 { @apply text-3xl; }
+.tw-7660b45090 { @apply p-2; }
+.tw-793346c736 { @apply min-h-screen; }
+.tw-7fbb85697d { @apply font-black; }
+.tw-9d6de46b29 { @apply my-4; }
+.tw-a217b4eaa9 { @apply rounded-xl; }
+.tw-a2edcb1a3a { @apply whitespace-pre-wrap; }
+.tw-b3542e0588 { @apply space-y-6; }
+.tw-c82b67c88e { @apply underline; }
+.tw-ca6bcd4b6f { @apply border; }
+.tw-eccd13ef4f { @apply mt-3; }
