@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import Landing from './pages/Landing'
 import { Navbar } from './components/Navbar'
 import { Auth } from './pages/Auth'
-import Profile from './pages/Profile'
+import { Profile } from './pages/Profile'
 import Requests from './pages/Requests'
 import { SessionProvider, useSession } from './lib/session'
 import Roadmap from './pages/Roadmap'
