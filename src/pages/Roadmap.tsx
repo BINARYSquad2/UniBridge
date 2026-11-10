@@ -213,6 +213,10 @@ export const Roadmap: React.FC = () => {
       setErrorMessage('Укажите название микрошагa.');
       return;
     }
+    if (!generatedPlan?.plan_id) {
+      setErrorMessage('Сначала сгенерируйте roadmap, чтобы добавить микрошаг.');
+      return;
+    }
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) return setErrorMessage('Сессия истекла. Войдите снова.');
     setUpdatingMicroStepID(`new:${taskId}`);

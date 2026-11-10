@@ -8,6 +8,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const defaultLLMModel = "gemini-2.5-flash-lite,gemini-2.5-pro"
+
 type Config struct {
 	Host         string
 	Port         string
@@ -38,7 +40,7 @@ func New() (Config, error) {
 		DatabaseURL:  databaseURL,
 		AuthSecret:   authSecret,
 		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
-		LLMModel:     getEnv("LLM_MODEL", "gemini-2.5-flash,gemini-2.5-pro"),
+		LLMModel:     getEnv("LLM_MODEL", defaultLLMModel),
 	}, nil
 }
 

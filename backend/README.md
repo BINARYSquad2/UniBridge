@@ -17,7 +17,7 @@ Create `backend/.env` and set the PostgreSQL connection string:
 DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=disable
 AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters-long
 GEMINI_API_KEY=your-gemini-api-key
-LLM_MODEL=gemini-2.5-flash,gemini-2.5-pro
+LLM_MODEL=gemini-2.5-flash-lite,gemini-2.5-pro
 ```
 
 On startup, the server connects to PostgreSQL and applies unapplied SQL files

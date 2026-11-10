@@ -668,6 +668,10 @@ impactScore — приоритет milestone по шкале: 0-39 низкий,
 	return roadmapPlan{}, errors.Join(failures...)
 }
 
+func defaultRoadmapModelCandidates() []string {
+	return []string{"gemini-2.5-flash-lite", "gemini-2.5-pro"}
+}
+
 func (h Roadmap) modelCandidates() []string {
 	models := make([]string, 0, maxLLMModelAttempts)
 	seen := make(map[string]struct{})
@@ -686,7 +690,7 @@ func (h Roadmap) modelCandidates() []string {
 		}
 	}
 	if len(models) == 0 {
-		return []string{"gemini-2.5-flash"}
+		return defaultRoadmapModelCandidates()
 	}
 	return models
 }

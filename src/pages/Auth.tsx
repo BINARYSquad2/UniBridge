@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import '../styles/Auth.css';
-import { useSession, type User } from '../lib/session';
 import { SUBJECT_DIRECTIONS } from '../lib/subjectDirections';
 import { useNavigate } from 'react-router-dom';
 

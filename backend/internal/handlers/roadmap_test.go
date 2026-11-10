@@ -142,6 +142,20 @@ func TestModelCandidatesParsesAndLimitsCommaSeparatedModels(t *testing.T) {
 	}
 }
 
+func TestModelCandidatesFallsBackToSupportedDefaultSet(t *testing.T) {
+	handler := Roadmap{}
+	got := handler.modelCandidates()
+	want := []string{"gemini-2.5-flash-lite", "gemini-2.5-pro"}
+	if len(got) != len(want) {
+		t.Fatalf("modelCandidates() = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("modelCandidates() = %v, want %v", got, want)
+		}
+	}
+}
+
 func TestGeneratePlanFallsBackWhenFirstModelReturnsInvalidGradeRange(t *testing.T) {
 	generator := &recordingGeminiGenerator{}
 	handler := Roadmap{

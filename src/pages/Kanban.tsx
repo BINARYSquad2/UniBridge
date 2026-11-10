@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/Kanban.css';
-import { useLocation } from 'react-router-dom';
 import '../styles/Landing.css';
 import '../styles/TaskTypeTag.css';
 import { 
-  Target, 
   CheckCircle2, 
   Circle, 
   Plus,
@@ -43,7 +41,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 const MAX_DAILY_TASKS = 5;
 
 export const KanbanBoard: React.FC = () => {
-  const location = useLocation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');

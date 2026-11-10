@@ -75,13 +75,6 @@ const PORTFOLIO_STAGE_LABELS: Record<string, string> = {
   completed: 'Сформированное портфолио (готов к подаче документов)',
 };
 
-const STATS = [
-  { label: 'Пройдено шагов', value: '18/24', accent: false },
-  { label: 'Часов обучения', value: '148', accent: true },
-  { label: 'Сессий с ментором', value: '8', accent: false },
-  { label: 'Текущий Streak', value: '12 дней', accent: true },
-];
-
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<CurrentProfile | null>(null);
