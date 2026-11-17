@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import '../styles/Auth.css';
 import { SUBJECT_DIRECTIONS } from '../lib/subjectDirections';
 import { useNavigate } from 'react-router-dom';
+import { useSession, type User } from '../lib/session';
 
 type AuthMode = 'login' | 'register';
 type Role = 'student' | 'mentor';
@@ -67,10 +68,11 @@ const getApiErrorMessage = (body: string, fallback: string) => {
 
 export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) => {
   const navigate = useNavigate();
+  const { signIn } = useSession();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [step, setStep] = useState<number>(1);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [   isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -153,18 +155,26 @@ export const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onClose }) =>
         ));
       }
 
-      const result = responseBody ? JSON.parse(responseBody) as { access_token?: string } : null;
-      if (!result || typeof result !== 'object' || !result.access_token) {
+      const result = responseBody ? JSON.parse(responseBody) as { access_token?: string; user?: User } : null;
+      if (
+        !result ||
+        typeof result !== 'object' ||
+        !result.access_token ||
+        !result.user?.id ||
+        !result.user.full_name ||
+        !result.user.email ||
+        !['student', 'mentor'].includes(result.user.role)
+      ) {
         if (endpoint === 'login') {
           throw new Error('Неверный email или пароль');
         }
         throw new Error('Сервер вернул некорректный ответ');
       }
 
-      localStorage.setItem('access_token', result.access_token);
+      signIn(result.access_token, result.user);
       setSuccessMessage(endpoint === 'login' ? 'Вход выполнен' : 'Аккаунт создан');
       onClose?.();
-      navigate('/profile');
+      navigate('/profile', { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось подключиться к серверу');
     } finally {

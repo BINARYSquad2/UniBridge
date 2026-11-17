@@ -1,5 +1,34 @@
 @reference "./index.css";
 
+.analytics-today-plan {
+  /* Делаем внешнюю рамку виджета тоже полупрозрачной */
+  border-color: color-mix(in srgb, var(--color-border) 25%, transparent);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+.analytics-today-plan__title,
+.analytics-today-plan__task-title,
+.analytics-today-plan__count {
+  color: var(--color-text-primary);
+}
+
+.analytics-today-plan__task {
+  background: var(--color-bg-secondary);
+  /* Снижаем непрозрачность границ карточек задач до 15% */
+  border-color: color-mix(in srgb, var(--color-border) 15%, transparent);
+}
+
+.analytics-today-plan__empty,
+.analytics-today-plan__footer {
+  color: var(--color-text-secondary);
+} 
+
+.analytics-today-plan__footer {
+  /* Делаем разделитель внизу таким же деликатным */
+  border-color: color-mix(in srgb, var(--color-border) 15%, transparent);
+}
+
 .tw-012fbd121f { @apply shrink-0; }
 .tw-020ba687fa { @apply sm:flex-row; }
 .tw-0214b4b355 { @apply block; }

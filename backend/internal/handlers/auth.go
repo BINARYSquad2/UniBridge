@@ -161,6 +161,10 @@ func (a Auth) loadStudentProfile(r *http.Request, userID string) (studentProfile
 }
 
 func authenticatedUserID(r *http.Request, secret []byte) (string, error) {
+	if len(secret) < 32 {
+		return "", errors.New("invalid token signing key")
+	}
+
 	header := strings.Fields(r.Header.Get("Authorization"))
 	if len(header) != 2 || !strings.EqualFold(header[0], "Bearer") {
 		return "", errors.New("missing bearer token")
@@ -172,9 +176,15 @@ func authenticatedUserID(r *http.Request, secret []byte) (string, error) {
 			return nil, errors.New("unexpected signing method")
 		}
 		return secret, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+	)
 
-	if err != nil || !token.Valid || claims.Subject == "" {
+	if err != nil || token == nil || !token.Valid ||
+		claims.Subject == "" || strings.TrimSpace(claims.Subject) == "" ||
+		claims.IssuedAt == nil || claims.ExpiresAt == nil {
 		return "", errors.New("invalid bearer token")
 	}
 

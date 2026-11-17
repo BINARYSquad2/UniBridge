@@ -497,13 +497,13 @@ export default function Analytics() {
             </div>
 
             {/* Виджет «Сегодняшний план» */}
-            <div className="landing__feature-card tw-0478c89a15 tw-e91f4cd397 tw-ea189a088a tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-668b21aa54 tw-60fbb77139 tw-8dddea0773 tw-8ef2268efb" style={{ padding: '16px', background: '#fff', boxSizing: 'border-box', textAlign: 'left' }}>
+            <div className="analytics-today-plan landing__feature-card tw-0478c89a15 tw-e91f4cd397 tw-ea189a088a tw-ca6bcd4b6f tw-18049387f0 tw-6a2c73aab2 tw-668b21aa54 tw-60fbb77139 tw-8dddea0773 tw-8ef2268efb" style={{ padding: '16px', boxSizing: 'border-box', textAlign: 'left' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <ListTodo size={16} className="tw-17d820623e" />
-                  <h2 style={{ fontSize: '15px', fontWeight: 600, color: '#1f2937', margin: 0 }}>Сегодняшний план</h2>
+                  <h2 className="analytics-today-plan__title" style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Сегодняшний план</h2>
                 </div>
-                <Link to="/roadmap" style={{ fontSize: '12px', color: 'var(--brand, #2563eb)', textDecoration: 'none', fontWeight: 500 }}>
+                <Link to="/roadmap" style={{ fontSize: '12px', color: 'var(--color-brand)', textDecoration: 'none', fontWeight: 500 }}>
                   Все &rarr;
                 </Link>
               </div>
@@ -515,22 +515,23 @@ export default function Analytics() {
                   .map((task) => (
                     <div
                       key={task.id}
-                      style={{ padding: '10px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}
+                      className="analytics-today-plan__task"
+                      style={{ padding: '10px', borderRadius: '8px', border: '1px solid', display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}
                     >
-                      <p style={{ margin: 0, fontSize: '12px', fontWeight: 500, color: '#1f2937', lineHeight: '1.4' }}>{task.title}</p>
+                      <p className="analytics-today-plan__task-title" style={{ margin: 0, fontSize: '12px', fontWeight: 500, lineHeight: '1.4' }}>{task.title}</p>
                       <span className="task-type-tag" style={{ fontSize: '10px', padding: '1px 6px', width: 'fit-content' }}>
                         {taskTypeLabel(task.task_type)}
                       </span>
                     </div>
                   ))}
                 {tasks.filter((t) => !t.completed).length === 0 && (
-                  <p style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center', padding: '12px 0' }}>Все задачи выполнены! 🎉</p>
+                  <p className="analytics-today-plan__empty" style={{ fontSize: '12px', textAlign: 'center', padding: '12px 0' }}>Все задачи выполнены! 🎉</p>
                 )}
               </div>
 
-              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6b7280' }}>
-                <span>Осталось: <strong style={{ color: '#1f2937' }}>{roadmapMetrics.total_tasks - roadmapMetrics.completed_tasks}</strong></span>
-                <Link to="/roadmap" style={{ color: 'var(--brand, #2563eb)', textDecoration: 'none', fontWeight: 500 }}>
+              <div className="analytics-today-plan__footer" style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid', display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <span>Осталось: <strong className="analytics-today-plan__count">{roadmapMetrics.total_tasks - roadmapMetrics.completed_tasks}</strong></span>
+                <Link to="/roadmap" style={{ color: 'var(--color-brand)', textDecoration: 'none', fontWeight: 500 }}>
                   В план &rarr;
                 </Link>
               </div>
