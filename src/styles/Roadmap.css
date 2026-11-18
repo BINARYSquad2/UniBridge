@@ -170,7 +170,7 @@
 .roadmap-container {
   width: min(100%, 80rem);
   max-width: 80rem;
-  padding: 7.25rem 2rem 4rem;
+  padding: 0 0 4rem;
 }
 
 .roadmap-header {

@@ -6,6 +6,7 @@ import {
   Map,
   GraduationCap,
   BookOpen,
+  Kanban,
 } from 'lucide-react'
 import { useSession } from '../lib/session'
 import '../styles/CabinetNav.css'
@@ -26,6 +27,11 @@ export function CabinetNav() {
             label: 'Запросы учеников',
             Icon: Inbox,
           },
+          {
+            to: '/kanban',
+            label: 'Kanban',
+            Icon: Kanban,
+          },
         ]
       : [
           {
@@ -42,6 +48,11 @@ export function CabinetNav() {
             to: '/roadmap',
             label: 'Roadmap',
             Icon: Map,
+          },
+          {
+            to: '/kanban',
+            label: 'Kanban',
+            Icon: Kanban,
           },
         ]),
   ]

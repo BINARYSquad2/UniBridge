@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import '../styles/Kanban.css';
 import '../styles/Landing.css';
 import '../styles/TaskTypeTag.css';
+import { CabinetNav } from '../components/CabinetNav';
+import '../styles/CabinetLayout.css';
 import { 
   CheckCircle2, 
   Circle, 
@@ -268,10 +270,13 @@ export const KanbanBoard: React.FC = () => {
   const progressPercentage = totalStepsCount > 0 ? Math.round((completedStepsCount / totalStepsCount) * 100) : 0;
 
   return (
-    <div className="landing-page tw-793346c736" style={{ paddingBottom: '32px', paddingTop: '84px' }}>
+    <div className="landing-page tw-793346c736" style={{ paddingBottom: '32px' }}>
       <div className="landing__hero-decoration" />
-      
-      <div className="tw-6da6a3c3f7 tw-c0491287cc tw-0e12dc7de9 tw-f0faeb26d6 tw-8fb6f42ff2 tw-61357c0c2f tw-8107d37319" style={{ padding: '16px 24px', maxWidth: '1100px', margin: '0 auto' }}>
+
+      <div className="cabinet-layout">
+        <CabinetNav />
+        <main className="cabinet-content">
+          <div className="tw-6da6a3c3f7 tw-c0491287cc tw-0e12dc7de9 tw-f0faeb26d6 tw-8fb6f42ff2 tw-61357c0c2f tw-8107d37319" style={{ padding: '16px 24px', maxWidth: '1100px', margin: '0 auto' }}>
         
         {/* Хедер фокуса с возможностью сворачивания */}
         <header className="tw-60fbb77139 tw-3960ffc248 tw-77a2a20e90" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '16px', flexWrap: 'wrap' }}>
@@ -668,6 +673,8 @@ export const KanbanBoard: React.FC = () => {
           </div>
         )}
 
+      </div>
+        </main>
       </div>
     </div>
   );

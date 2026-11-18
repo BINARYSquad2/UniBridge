@@ -3,6 +3,8 @@ import '../styles/Roadmap.css';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Landing.css';
 import '../styles/TaskTypeTag.css';
+import { CabinetNav } from '../components/CabinetNav';
+import '../styles/CabinetLayout.css';
 import { 
   CheckCircle2, 
   Circle, 
@@ -331,7 +333,10 @@ export const Roadmap: React.FC = () => {
       <div className="landing__hero-decoration" />
       <div className="landing__hero-decoration-2" />
 
-      <div className="landing__container roadmap-container">
+      <div className="cabinet-layout">
+        <CabinetNav />
+        <main className="cabinet-content">
+          <div className="landing__container roadmap-container">
         
         {/* Header Section */}
         <header className="roadmap-header" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '20px', borderBottom: '1px solid #f3f4f6', textAlign: 'left' }}>
@@ -692,6 +697,8 @@ export const Roadmap: React.FC = () => {
         </div>
       )}
 
+      </main>
+      </div>
     </div>
   );
 };

@@ -23,18 +23,11 @@ BEGIN
         SELECT 1 FROM pg_trigger
         WHERE tgname = 'update_kanban_tasks_updated_at'
           AND tgrelid = 'kanban_tasks'::regclass
-<<<<<<< HEAD:backend/migrations/000012_kanban_tasks.up.sql
-=======
           AND NOT tgisinternal
->>>>>>> Refactoring:backend/migrations/000010_kanban_tasks.up.sql
     ) THEN
         CREATE TRIGGER update_kanban_tasks_updated_at
             BEFORE UPDATE ON kanban_tasks
             FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
     END IF;
-<<<<<<< HEAD:backend/migrations/000012_kanban_tasks.up.sql
 END;
-=======
-END
->>>>>>> Refactoring:backend/migrations/000010_kanban_tasks.up.sql
 $$;

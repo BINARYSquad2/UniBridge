@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -20,12 +21,18 @@ type kanbanMicroStep struct {
 	Completed bool   `json:"completed"`
 }
 
+type kanbanTaskArtifact struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
 type kanbanTask struct {
-	ID         string            `json:"id"`
-	Title      string            `json:"title"`
-	TaskType   string            `json:"task_type"`
-	Status     string            `json:"status"`
-	MicroSteps []kanbanMicroStep `json:"micro_steps"`
+	ID         string              `json:"id"`
+	Title      string              `json:"title"`
+	TaskType   string              `json:"task_type"`
+	Status     string              `json:"status"`
+	MicroSteps []kanbanMicroStep   `json:"micro_steps"`
+	Artifact   *kanbanTaskArtifact `json:"artifact,omitempty"`
 }
 
 type createKanbanTaskRequest struct {
@@ -35,8 +42,10 @@ type createKanbanTaskRequest struct {
 }
 
 type updateKanbanTaskRequest struct {
-	Status     string             `json:"status"`
-	MicroSteps *[]kanbanMicroStep `json:"micro_steps"`
+	Status      string              `json:"status"`
+	MicroSteps  *[]kanbanMicroStep  `json:"micro_steps"`
+	Description *string             `json:"description"`
+	Artifact    *kanbanTaskArtifact `json:"artifact"`
 }
 
 func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +60,7 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.QueryContext(r.Context(), `
-		SELECT id::text, title, task_type, status, micro_steps::text
+		SELECT id::text, title, task_type, status, micro_steps::text, artifact_type, artifact_value
 		FROM kanban_tasks
 		WHERE user_id = $1
 		ORDER BY created_at DESC, id
@@ -66,9 +75,16 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var task kanbanTask
 		var microStepsJSON string
-		if err := rows.Scan(&task.ID, &task.Title, &task.TaskType, &task.Status, &microStepsJSON); err != nil {
+		var artifactType, artifactValue sql.NullString
+		if err := rows.Scan(
+			&task.ID, &task.Title, &task.TaskType, &task.Status, &microStepsJSON,
+			&artifactType, &artifactValue,
+		); err != nil {
 			writeKanbanError(w, "scan task", err)
 			return
+		}
+		if artifactType.Valid {
+			task.Artifact = &kanbanTaskArtifact{Type: artifactType.String, Value: artifactValue.String}
 		}
 		if err := json.Unmarshal([]byte(microStepsJSON), &task.MicroSteps); err != nil {
 			writeKanbanError(w, "decode task micro-steps", err)
@@ -296,6 +312,23 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	artifact := input.Artifact
+	if input.Description != nil {
+		if artifact != nil {
+			writeAuthError(w, http.StatusBadRequest, "provide either description or artifact, not both")
+			return
+		}
+		artifact = &kanbanTaskArtifact{Type: "explanation", Value: *input.Description}
+	}
+	var artifactType, artifactValue any
+	if artifact != nil {
+		artifact.Value = strings.TrimSpace(artifact.Value)
+		if err := validateKanbanTaskArtifact(*artifact); err != nil {
+			writeAuthError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		artifactType, artifactValue = artifact.Type, artifact.Value
+	}
 	microStepsJSON, err := json.Marshal(*input.MicroSteps)
 	if err != nil {
 		writeKanbanError(w, "encode task micro-steps", err)
@@ -303,13 +336,18 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var task kanbanTask
 	var encodedMicroSteps string
+	var savedArtifactType, savedArtifactValue sql.NullString
 	err = h.DB.QueryRowContext(r.Context(), `
 		UPDATE kanban_tasks
-		SET status = $1, micro_steps = $2::jsonb, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $3 AND user_id = $4
-		RETURNING id::text, title, task_type, status, micro_steps::text
-	`, input.Status, string(microStepsJSON), r.PathValue("taskID"), userID).Scan(
+		SET status = $1, micro_steps = $2::jsonb,
+			artifact_type = COALESCE($3, artifact_type),
+			artifact_value = COALESCE($4, artifact_value),
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $5 AND user_id = $6
+		RETURNING id::text, title, task_type, status, micro_steps::text, artifact_type, artifact_value
+	`, input.Status, string(microStepsJSON), artifactType, artifactValue, r.PathValue("taskID"), userID).Scan(
 		&task.ID, &task.Title, &task.TaskType, &task.Status, &encodedMicroSteps,
+		&savedArtifactType, &savedArtifactValue,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusNotFound, "kanban task not found")
@@ -323,7 +361,30 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		writeKanbanError(w, "decode updated task micro-steps", err)
 		return
 	}
+	if savedArtifactType.Valid {
+		task.Artifact = &kanbanTaskArtifact{Type: savedArtifactType.String, Value: savedArtifactValue.String}
+	}
 	writeKanbanJSON(w, http.StatusOK, task)
+}
+
+func validateKanbanTaskArtifact(artifact kanbanTaskArtifact) error {
+	if artifact.Value == "" || len(artifact.Value) > 5000 {
+		return errors.New("artifact value must contain at most 5000 characters")
+	}
+	switch artifact.Type {
+	case "link":
+		parsed, err := url.ParseRequestURI(artifact.Value)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return errors.New("artifact link must be a valid http or https URL")
+		}
+	case "explanation":
+		if len(artifact.Value) < 5 {
+			return errors.New("artifact explanation must contain at least 5 characters")
+		}
+	default:
+		return errors.New("artifact type must be link or explanation")
+	}
+	return nil
 }
 
 func validateKanbanMicroSteps(microSteps []kanbanMicroStep) error {

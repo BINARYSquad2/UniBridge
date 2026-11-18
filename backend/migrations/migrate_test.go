@@ -17,11 +17,11 @@ func TestEmbeddedMigrationVersionsAreContiguous(t *testing.T) {
 		t.Fatalf("get first migration version: %v", err)
 	}
 
-	for expected := uint(1); expected <= 12; expected++ {
+	for expected := uint(1); expected <= 13; expected++ {
 		if version != expected {
 			t.Fatalf("migration version = %d, want %d", version, expected)
 		}
-		if expected < 12 {
+		if expected < 13 {
 			version, err = source.Next(version)
 			if err != nil {
 				t.Fatalf("get migration after version %d: %v", expected, err)
