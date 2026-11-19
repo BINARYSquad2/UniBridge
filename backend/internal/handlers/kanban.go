@@ -48,6 +48,7 @@ type updateKanbanTaskRequest struct {
 	Artifact    *kanbanTaskArtifact `json:"artifact"`
 }
 
+// выводит через GET список
 func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")

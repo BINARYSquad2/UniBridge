@@ -3,15 +3,37 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/genai"
 )
 
 type recordingGeminiGenerator struct {
 	models  []string
 	prompts []string
+}
+
+type sequencedGeminiGenerator struct {
+	errors map[string][]error
+	calls  map[string]int
+}
+
+func (g *sequencedGeminiGenerator) Generate(_ context.Context, model, _ string) (string, error) {
+	if g.calls == nil {
+		g.calls = make(map[string]int)
+	}
+	call := g.calls[model]
+	g.calls[model]++
+	if call < len(g.errors[model]) {
+		return "", g.errors[model][call]
+	}
+	encoded, err := json.Marshal(testRoadmapPlan())
+	return string(encoded), err
 }
 
 func (g *recordingGeminiGenerator) Generate(_ context.Context, model, prompt string) (string, error) {
@@ -176,10 +198,110 @@ func TestGeneratePlanFallsBackWhenFirstModelReturnsInvalidGradeRange(t *testing.
 	}
 }
 
+func TestGeneratePlanRetriesTransientGeminiErrorsWithExponentialBackoff(t *testing.T) {
+	for _, status := range []int{http.StatusServiceUnavailable, http.StatusTooManyRequests} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			generator := &sequencedGeminiGenerator{
+				errors: map[string][]error{
+					"test-model": {
+						fmt.Errorf("temporary Gemini error: %w", genai.APIError{Code: status}),
+						fmt.Errorf("temporary Gemini error: %w", genai.APIError{Code: status}),
+						fmt.Errorf("temporary Gemini error: %w", genai.APIError{Code: status}),
+					},
+				},
+			}
+			var delays []time.Duration
+			handler := Roadmap{
+				Model:       "test-model",
+				generator:   generator,
+				retryWait:   func(_ context.Context, delay time.Duration) error { delays = append(delays, delay); return nil },
+				retryJitter: func() float64 { return 0 },
+			}
+
+			if _, err := handler.generatePlan(context.Background(), roadmapProfile{SchoolGrade: 9}, "", 2026, 2028); err != nil {
+				t.Fatalf("generatePlan() returned error: %v", err)
+			}
+			if generator.calls["test-model"] != 4 {
+				t.Fatalf("model calls = %d, want 4", generator.calls["test-model"])
+			}
+			wantDelays := []time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}
+			if len(delays) != len(wantDelays) {
+				t.Fatalf("retry delays = %v, want %v", delays, wantDelays)
+			}
+			for index := range wantDelays {
+				if delays[index] != wantDelays[index] {
+					t.Errorf("retry delay %d = %v, want %v", index, delays[index], wantDelays[index])
+				}
+			}
+		})
+	}
+}
+
+func TestGeneratePlanSkipsRetriesForBadRequestAndNotFound(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusNotFound} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			generator := &sequencedGeminiGenerator{
+				errors: map[string][]error{
+					"first-model": {genai.APIError{Code: status}},
+				},
+			}
+			var waitCalls int
+			handler := Roadmap{
+				Model:     "first-model, second-model",
+				generator: generator,
+				retryWait: func(context.Context, time.Duration) error { waitCalls++; return nil },
+			}
+
+			if _, err := handler.generatePlan(context.Background(), roadmapProfile{SchoolGrade: 9}, "", 2026, 2028); err != nil {
+				t.Fatalf("generatePlan() returned error: %v", err)
+			}
+			if generator.calls["first-model"] != 1 || generator.calls["second-model"] != 1 {
+				t.Fatalf("model calls = %v, want one call to each model", generator.calls)
+			}
+			if waitCalls != 0 {
+				t.Fatalf("retry waits = %d, want 0", waitCalls)
+			}
+		})
+	}
+}
+
+func TestGeneratePlanStopsRetryingWhenContextIsCancelled(t *testing.T) {
+	generator := &sequencedGeminiGenerator{
+		errors: map[string][]error{
+			"first-model": {genai.APIError{Code: http.StatusServiceUnavailable}},
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	handler := Roadmap{
+		Model:     "first-model, second-model",
+		generator: generator,
+		retryWait: func(ctx context.Context, delay time.Duration) error {
+			cancel()
+			return waitForRetry(ctx, delay)
+		},
+		retryJitter: func() float64 { return 0 },
+	}
+
+	if _, err := handler.generatePlan(ctx, roadmapProfile{SchoolGrade: 9}, "", 2026, 2028); !errors.Is(err, context.Canceled) {
+		t.Fatalf("generatePlan() error = %v, want context.Canceled", err)
+	}
+	if generator.calls["first-model"] != 1 || generator.calls["second-model"] != 0 {
+		t.Fatalf("model calls = %v, want only one call to first-model", generator.calls)
+	}
+}
+
 func TestGeneratePlanIncludesPreferencesInPrompt(t *testing.T) {
 	generator := &recordingGeminiGenerator{}
 	handler := Roadmap{Model: "test-model", generator: generator}
-	profile := roadmapProfile{SchoolGrade: 9}
+	gpa := 4.7
+	profile := roadmapProfile{
+		SchoolGrade:        9,
+		TargetUniversities: []string{"Nazarbayev University"},
+		WeeklyHours:        8,
+		Exams:              []string{"SAT", "IELTS"},
+		AcademicBackground: []string{"Призер областных олимпиад"},
+		GPA:                &gpa,
+	}
 	preferences := "Хочу заниматься робототехникой"
 
 	if _, err := handler.generatePlan(context.Background(), profile, preferences, 2026, 2028); err != nil {
@@ -198,7 +320,19 @@ func TestGeneratePlanIncludesPreferencesInPrompt(t *testing.T) {
 			t.Errorf("generated prompt %q does not include requirement %q", generator.prompts[0], required)
 		}
 	}
-	for _, removed := range []string{"weekly_hours", "estimated_minutes", "duration"} {
+	for _, included := range []string{
+		`"target_universities":["Nazarbayev University"]`,
+		`"weekly_hours":8`,
+		`"exams":["SAT","IELTS"]`,
+		`"academic_background":["Призер областных олимпиад"]`,
+		`"gpa":4.7`,
+		"8 часов в неделю",
+	} {
+		if !strings.Contains(generator.prompts[0], included) {
+			t.Errorf("generated prompt %q does not include profile data %q", generator.prompts[0], included)
+		}
+	}
+	for _, removed := range []string{"estimated_minutes", "duration"} {
 		if strings.Contains(generator.prompts[0], removed) {
 			t.Errorf("generated prompt %q still includes removed timing field %q", generator.prompts[0], removed)
 		}

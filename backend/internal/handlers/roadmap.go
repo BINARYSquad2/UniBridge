@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -16,20 +17,25 @@ import (
 )
 
 type Roadmap struct {
-	DB        *sql.DB
-	JWTSecret []byte
-	APIKey    string
-	Model     string
-	generator geminiTextGenerator
+	DB          *sql.DB
+	JWTSecret   []byte
+	APIKey      string
+	Model       string
+	generator   geminiTextGenerator
+	retryWait   func(context.Context, time.Duration) error
+	retryJitter func() float64
 }
 
 const maxLLMModelAttempts = 4
+const maxGeminiRetriesPerModel = 3
+const geminiRetryBaseDelay = 500 * time.Millisecond
+const geminiRetryMaxJitter = 0.5
 const minRoadmapMilestones = 4
 const maxRoadmapMilestones = 5
 const minRoadmapTasksPerMilestone = 2
 const maxRoadmapTasksPerMilestone = 4
 
-const roadmapSystemInstruction = "Ты эксперт и консультант по академическому планированию для школьников. Верни ТОЛЬКО валидный JSON-объект без markdown-разметки (без ```json). Построй реалистичный персонализированный план развития от текущего класса ученика до конца школьного обучения. Учитывай интересы, сильные стороны, точки роста и текущий этап портфолио. Разбей план на этапы по учебным годам. В плане ориентируйся на целевые экзамены ученика (SAT, IELTS, TOEFL, NUET, олимпиады, школьные выпускные экзамены и т.д.), полностью исключая специфику ОГЭ/ЕГЭ. Не придумывай гарантированные результаты и точные даты проведения экзаменов."
+const roadmapSystemInstruction = "Ты эксперт и консультант по академическому планированию для школьников. Верни ТОЛЬКО валидный JSON-объект без markdown-разметки (без ```json). Построй реалистичный персонализированный план развития от текущего класса ученика до конца школьного обучения, разбитый по учебным годам. Опирайся на переданные данные: текущий класс, интересы, сильные стороны, точки роста, текущий этап портфолио, целевые университеты, планируемые экзамены, доступное время в неделю, академический профиль и GPA. Соотноси подготовку к экзаменам (SAT, IELTS, TOEFL, NUET, олимпиады, школьные выпускные экзамены и т.д.) и развитие портфолио с выбранными университетами, полностью исключая специфику ОГЭ и ЕГЭ. Строго соблюдай бюджет времени: распределяй приоритеты и объём задач на каждом этапе так, чтобы суммарная нагрузка не превышала доступные часы в неделю; если цели не укладываются в лимит времени или текущий уровень, скорректируй темп и явно отрази этот риск. Не выдумывай гарантированные баллы, шансы поступления и точные даты экзаменов."
 const maxRoadmapPreferencesLength = 2000
 
 type geminiTextGenerator interface {
@@ -61,11 +67,16 @@ func (g geminiSDKGenerator) Generate(ctx context.Context, model, prompt string) 
 }
 
 type roadmapProfile struct {
-	SchoolGrade    int      `json:"school_grade"`
-	Interests      []string `json:"interests"`
-	Strengths      []string `json:"strengths"`
-	Weaknesses     []string `json:"weaknesses"`
-	PortfolioStage string   `json:"portfolio_stage"`
+	SchoolGrade        int      `json:"school_grade"`
+	Interests          []string `json:"interests"`
+	Strengths          []string `json:"strengths"`
+	Weaknesses         []string `json:"weaknesses"`
+	TargetUniversities []string `json:"target_universities"`
+	WeeklyHours        int      `json:"weekly_hours"`
+	Exams              []string `json:"exams"`
+	AcademicBackground []string `json:"academic_background"`
+	GPA                *float64 `json:"gpa,omitempty"`
+	PortfolioStage     string   `json:"portfolio_stage"`
 }
 
 type generateRoadmapRequest struct {
@@ -596,13 +607,19 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 
 func (h Roadmap) loadStudentProfile(ctx context.Context, userID string) (roadmapProfile, error) {
 	var profile roadmapProfile
+	var gpa sql.NullFloat64
 	var interests, strengths, weaknesses pq.StringArray
+	var targetUniversities, exams, academicBackground pq.StringArray
 	err := h.DB.QueryRowContext(ctx, `
-		SELECT school_grade, interests, strengths, weaknesses, portfolio_stage::text
+		SELECT school_grade, interests, strengths, weaknesses,
+		       target_universities, weekly_hours, exams, academic_background,
+		       gpa, portfolio_stage::text
 		FROM student_profiles
 		WHERE user_id = $1
 	`, userID).Scan(
-		&profile.SchoolGrade, &interests, &strengths, &weaknesses, &profile.PortfolioStage,
+		&profile.SchoolGrade, &interests, &strengths, &weaknesses,
+		&targetUniversities, &profile.WeeklyHours, &exams, &academicBackground,
+		&gpa, &profile.PortfolioStage,
 	)
 	if err != nil {
 		return roadmapProfile{}, err
@@ -610,6 +627,12 @@ func (h Roadmap) loadStudentProfile(ctx context.Context, userID string) (roadmap
 	profile.Interests = []string(interests)
 	profile.Strengths = []string(strengths)
 	profile.Weaknesses = []string(weaknesses)
+	profile.TargetUniversities = []string(targetUniversities)
+	profile.Exams = []string(exams)
+	profile.AcademicBackground = []string(academicBackground)
+	if gpa.Valid {
+		profile.GPA = &gpa.Float64
+	}
 	return profile, nil
 }
 
@@ -621,6 +644,7 @@ func (h Roadmap) generatePlan(ctx context.Context, profile roadmapProfile, prefe
 
 	userPrompt := fmt.Sprintf(`Профиль ученика JSON: %s
 Предпочтения ученика (дополнительный контекст, не меняющий формат результата): %s
+Используй целевые университеты для приоритизации требований к поступлению. Учитывай доступную нагрузку в %d часов в неделю и равномерно распределяй подготовку. Экзамены и академический профиль используй для выбора приоритетов и исходного уровня; если GPA не указан, не предполагай его.
 Начальный класс: %d. Конечный класс: 11. Учебный год начала: %d-%d. Учебный год окончания: %d-%d.
 Верни поля title, summary, start_grade, end_grade, start_academic_year, end_academic_year, steps.
 Составь ровно %d-%d milestones в steps. Каждый milestone — короткий этап плана, привязанный к подходящему учебному году или периоду.
@@ -630,7 +654,7 @@ impactScore — приоритет milestone по шкале: 0-39 низкий,
 Для каждого milestone укажи ровно %d-%d конкретные задачи. Каждая task: id, title, task_type (ec, test, essay, recommendation, academic или other), completed=false, micro_steps: [].
 Не добавляй точные due_date, если их нельзя обосновать профилем. Не дроби задачи на подзадачи и не добавляй лишние этапы или задачи.
 Укажи start_grade=%d, end_grade=11, start_academic_year=%d-%d, end_academic_year=%d-%d.`,
-		profileJSON, preferences, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
+		profileJSON, preferences, profile.WeeklyHours, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
 		minRoadmapMilestones, maxRoadmapMilestones, minRoadmapTasksPerMilestone, maxRoadmapTasksPerMilestone,
 		profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1)
 
@@ -652,20 +676,89 @@ impactScore — приоритет milestone по шкале: 0-39 низкий,
 	var failures []error
 	models := h.modelCandidates()
 	for _, model := range models {
-		plan, err := h.generatePlanWithModel(ctx, generator, model, userPrompt)
-		if err == nil {
-			err = validateRoadmapPlan(plan, profile.SchoolGrade, startYear, endYear)
+		var modelErr error
+		for attempt := 0; attempt <= maxGeminiRetriesPerModel; attempt++ {
+			if err := ctx.Err(); err != nil {
+				modelErr = errors.Join(modelErr, err)
+				break
+			}
+
+			plan, err := h.generatePlanWithModel(ctx, generator, model, userPrompt)
+			if err == nil {
+				err = validateRoadmapPlan(plan, profile.SchoolGrade, startYear, endYear)
+			}
+			if err == nil {
+				return plan, nil
+			}
+			modelErr = err
+
+			if !isRetryableGeminiError(err) || attempt == maxGeminiRetriesPerModel {
+				break
+			}
+
+			wait := h.retryWait
+			if wait == nil {
+				wait = waitForRetry
+			}
+			jitter := rand.Float64
+			if h.retryJitter != nil {
+				jitter = h.retryJitter
+			}
+			if err := wait(ctx, geminiRetryDelay(attempt+1, jitter())); err != nil {
+				modelErr = errors.Join(modelErr, err)
+				break
+			}
 		}
-		if err == nil {
-			return plan, nil
-		}
-		failures = append(failures, fmt.Errorf("model %q: %w", model, err))
-		log.Printf("roadmap: model %q failed: %v", model, err)
+		failures = append(failures, fmt.Errorf("model %q: %w", model, modelErr))
+		log.Printf("roadmap: model %q failed: %v", model, modelErr)
 		if ctx.Err() != nil {
 			break
 		}
 	}
 	return roadmapPlan{}, errors.Join(failures...)
+}
+
+func isRetryableGeminiError(err error) bool {
+	status, ok := geminiHTTPStatus(err)
+	return ok && (status == http.StatusServiceUnavailable || status == http.StatusTooManyRequests)
+}
+
+func geminiHTTPStatus(err error) (int, bool) {
+	var apiError genai.APIError
+	if errors.As(err, &apiError) {
+		return apiError.Code, true
+	}
+
+	var apiErrorPointer *genai.APIError
+	if errors.As(err, &apiErrorPointer) && apiErrorPointer != nil {
+		return apiErrorPointer.Code, true
+	}
+	return 0, false
+}
+
+func geminiRetryDelay(retry int, jitter float64) time.Duration {
+	delay := geminiRetryBaseDelay
+	for range retry - 1 {
+		delay *= 2
+	}
+	if jitter < 0 {
+		jitter = 0
+	} else if jitter > 1 {
+		jitter = 1
+	}
+	return delay + time.Duration(float64(delay)*geminiRetryMaxJitter*jitter)
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func defaultRoadmapModelCandidates() []string {

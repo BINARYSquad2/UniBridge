@@ -37,19 +37,24 @@ type authResponse struct {
 }
 
 type registerRequest struct {
-	Bio            string   `json:"bio"`
-	Subjects       []string `json:"subjects"`
-	Name           string   `json:"name"`
-	Surname        string   `json:"surname"`
-	FullName       string   `json:"full_name"`
-	Email          string   `json:"email"`
-	Password       string   `json:"password"`
-	Role           string   `json:"role"`
-	SchoolGrade    *int     `json:"school_grade"`
-	Interests      []string `json:"interests"`
-	Strengths      []string `json:"strengths"`
-	Weaknesses     []string `json:"weaknesses"`
-	PortfolioStage string   `json:"portfolio_stage"`
+	Bio                string   `json:"bio"`
+	Subjects           []string `json:"subjects"`
+	Name               string   `json:"name"`
+	Surname            string   `json:"surname"`
+	FullName           string   `json:"full_name"`
+	Email              string   `json:"email"`
+	Password           string   `json:"password"`
+	Role               string   `json:"role"`
+	SchoolGrade        *int     `json:"school_grade"`
+	Interests          []string `json:"interests"`
+	Strengths          []string `json:"strengths"`
+	Weaknesses         []string `json:"weaknesses"`
+	TargetUniversities []string `json:"target_universities"`
+	WeeklyHours        *int     `json:"weekly_hours"`
+	Exams              []string `json:"exams"`
+	AcademicBackground []string `json:"academic_background"`
+	GPA                *float64 `json:"gpa"`
+	PortfolioStage     string   `json:"portfolio_stage"`
 }
 
 type loginRequest struct {
@@ -68,11 +73,16 @@ type currentProfileResponse struct {
 }
 
 type studentProfileData struct {
-	SchoolGrade    *int     `json:"school_grade,omitempty"`
-	Interests      []string `json:"interests"`
-	Strengths      []string `json:"strengths"`
-	Weaknesses     []string `json:"weaknesses"`
-	PortfolioStage string   `json:"portfolio_stage"`
+	SchoolGrade        *int     `json:"school_grade,omitempty"`
+	Interests          []string `json:"interests"`
+	Strengths          []string `json:"strengths"`
+	Weaknesses         []string `json:"weaknesses"`
+	TargetUniversities []string `json:"target_universities"`
+	WeeklyHours        int      `json:"weekly_hours"`
+	Exams              []string `json:"exams"`
+	AcademicBackground []string `json:"academic_background"`
+	GPA                *float64 `json:"gpa,omitempty"`
+	PortfolioStage     string   `json:"portfolio_stage"`
 }
 
 func (a Auth) CurrentProfile(w http.ResponseWriter, r *http.Request) {
@@ -131,10 +141,14 @@ func (a Auth) CurrentProfile(w http.ResponseWriter, r *http.Request) {
 func (a Auth) loadStudentProfile(r *http.Request, userID string) (studentProfileData, error) {
 	var profile studentProfileData
 	var schoolGrade sql.NullInt64
+	var gpa sql.NullFloat64
 	var interests, strengths, weaknesses pq.StringArray
+	var targetUniversities, exams, academicBackground pq.StringArray
 
 	err := a.DB.QueryRowContext(r.Context(), `
-		SELECT school_grade, interests, strengths, weaknesses, portfolio_stage::text
+		SELECT school_grade, interests, strengths, weaknesses,
+		       target_universities, weekly_hours, exams, academic_background,
+		       gpa, portfolio_stage::text
 		FROM student_profiles
 		WHERE user_id = $1
 	`, userID).Scan(
@@ -142,6 +156,11 @@ func (a Auth) loadStudentProfile(r *http.Request, userID string) (studentProfile
 		&interests,
 		&strengths,
 		&weaknesses,
+		&targetUniversities,
+		&profile.WeeklyHours,
+		&exams,
+		&academicBackground,
+		&gpa,
 		&profile.PortfolioStage,
 	)
 	if err != nil {
@@ -156,6 +175,12 @@ func (a Auth) loadStudentProfile(r *http.Request, userID string) (studentProfile
 	profile.Interests = []string(interests)
 	profile.Strengths = []string(strengths)
 	profile.Weaknesses = []string(weaknesses)
+	profile.TargetUniversities = []string(targetUniversities)
+	profile.Exams = []string(exams)
+	profile.AcademicBackground = []string(academicBackground)
+	if gpa.Valid {
+		profile.GPA = &gpa.Float64
+	}
 
 	return profile, nil
 }
@@ -241,6 +266,25 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Role == "student" {
+		if input.WeeklyHours == nil {
+			defaultWeeklyHours := 6
+			input.WeeklyHours = &defaultWeeklyHours
+		}
+		if !validWeeklyHours(*input.WeeklyHours) {
+			writeAuthError(w, http.StatusBadRequest, "weekly_hours must be between 1 and 40")
+			return
+		}
+		if input.GPA != nil && !validGPA(*input.GPA) {
+			writeAuthError(w, http.StatusBadRequest, "gpa must be between 1 and 5")
+			return
+		}
+
+		input.TargetUniversities = nonNilStrings(input.TargetUniversities)
+		input.Exams = nonNilStrings(input.Exams)
+		input.AcademicBackground = nonNilStrings(input.AcademicBackground)
+	}
+
 	if input.Role == "mentor" && (len(strings.TrimSpace(input.Bio)) == 0 || len(input.Bio) > 4000 || len(input.Subjects) == 0 || len(input.Subjects) > 14) {
 		writeAuthError(w, http.StatusBadRequest, "Укажите описание и направления ментора")
 		return
@@ -294,14 +338,21 @@ func (a Auth) Register(w http.ResponseWriter, r *http.Request) {
 	if input.Role == "student" {
 		_, err = tx.ExecContext(r.Context(), `
 			INSERT INTO student_profiles (
-				user_id, school_grade, interests, strengths, weaknesses, portfolio_stage
-			) VALUES ($1, $2, $3, $4, $5, $6)
+				user_id, school_grade, interests, strengths, weaknesses,
+				target_universities, weekly_hours, exams, academic_background,
+				gpa, portfolio_stage
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		`,
 			user.ID,
 			*input.SchoolGrade,
 			pq.Array(input.Interests),
 			pq.Array(input.Strengths),
 			pq.Array(input.Weaknesses),
+			pq.Array(input.TargetUniversities),
+			*input.WeeklyHours,
+			pq.Array(input.Exams),
+			pq.Array(input.AcademicBackground),
+			input.GPA,
 			input.PortfolioStage,
 		)
 		if err != nil {
@@ -345,6 +396,21 @@ func validPortfolioStage(stage string) bool {
 	default:
 		return false
 	}
+}
+
+func validWeeklyHours(hours int) bool {
+	return hours >= 1 && hours <= 40
+}
+
+func validGPA(gpa float64) bool {
+	return gpa >= 1 && gpa <= 5
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 func (a Auth) Login(w http.ResponseWriter, r *http.Request) {
