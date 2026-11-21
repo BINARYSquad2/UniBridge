@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { User, Check, ChevronDown, LogOut, Menu, X, GraduationCap, Palette } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useSession } from '../lib/session';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSession } from '../lib/session.context';
 import '../styles/Navbar.css';
 
 const NAV_LINKS = [
@@ -21,20 +21,17 @@ const COLOR_THEMES = [
 type ColorTheme = (typeof COLOR_THEMES)[number]['id'];
 
 export const Navbar: React.FC = () => {
-  const { logout } = useSession();
-  const location = useLocation();
+  const { user, signOut } = useSession();
   const navigate = useNavigate();
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => Boolean(localStorage.getItem('access_token'))
-  );
   const [colorTheme, setColorTheme] = useState<ColorTheme>(() => {
     const savedTheme = localStorage.getItem('unibridge-theme');
     return COLOR_THEMES.find(({ id }) => id === savedTheme)?.id ?? 'bridge';
   });
+  const isAuthenticated = Boolean(user);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -45,24 +42,12 @@ export const Navbar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const syncAuthState = () => {
-      setIsAuthenticated(Boolean(localStorage.getItem('access_token')));
-    };
-
-    syncAuthState();
-    window.addEventListener('storage', syncAuthState);
-
-    return () => window.removeEventListener('storage', syncAuthState);
-  }, [location.pathname]);
-
-  useEffect(() => {
     document.documentElement.dataset.theme = colorTheme;
     localStorage.setItem('unibridge-theme', colorTheme);
   }, [colorTheme]);
 
   const handleLogout = () => {
-    logout();
-    setIsAuthenticated(false);
+    signOut();
     setIsMobileMenuOpen(false);
     navigate('/');
   };
@@ -71,7 +56,7 @@ export const Navbar: React.FC = () => {
 
   const navigationLinks = [
     ...NAV_LINKS,
-    ...(isAuthenticated
+    ...(user
       ? [{ label: 'Аналитика', to: '/analytics' }]
       : []),
   ];

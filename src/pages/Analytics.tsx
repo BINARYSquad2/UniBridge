@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import '../styles/Analytics.css';
 import '../styles/TaskTypeTag.css';
+import '../styles/CabinetLayout.css';
+import { CabinetNav } from '../components/CabinetNav';
 import { Link, useNavigate } from 'react-router-dom';
 import '../styles/Landing.css';
+import { TASK_TYPE_PRESENTATION } from '../lib/axisTypes'
 import {
   Activity,
   ArrowRight,
@@ -11,13 +14,11 @@ import {
   CheckCircle2,
   Target,
   Award,
-  BookOpen,
-  Code2,
-  UserCheck,
   Clock,
   ListTodo
 } from 'lucide-react';
-import { api } from '../lib/session';
+import { api } from '../lib/api';
+import { useSession } from '../lib/session.context';
 import { taskTypeLabel } from '../lib/taskTypes';
 
 interface RoadmapTask {
@@ -75,17 +76,11 @@ const STATUS_LABELS: Record<RoadmapStep['status'], string> = {
   upcoming: 'Предстоит',
 };
 
-const TASK_TYPE_PRESENTATION: Record<string, { label: string; icon: typeof Award }> = {
-  ec: { label: 'Внеучебные', icon: Activity },
-  test: { label: 'Тесты', icon: BookOpen },
-  essay: { label: 'Эссе', icon: Code2 },
-  recommendation: { label: 'Рекомендации', icon: UserCheck },
-  academic: { label: 'Академические', icon: Target },
-  other: { label: 'Прочее', icon: Award },
-};
+
 
 export default function Analytics() {
   const navigate = useNavigate();
+  const { token, signOut } = useSession();
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
   const [roadmapMetrics, setRoadmapMetrics] = useState<RoadmapMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,11 +90,11 @@ export default function Analytics() {
   const [activeBarChartKey, setActiveBarChartKey] = useState<'tasks' | 'microSteps'>('tasks');
 
   useEffect(() => {
-    const accessToken = localStorage.getItem('access_token');
-    if (!accessToken) {
+    if (!token) {
       navigate('/login', { replace: true });
       return;
     }
+    const accessToken = token;
 
     const controller = new AbortController();
     const loadRoadmap = async () => {
@@ -109,8 +104,7 @@ export default function Analytics() {
           signal: controller.signal,
         });
         if (response.status === 401) {
-          localStorage.removeItem('access_token');
-          window.dispatchEvent(new Event('session-expired'));
+          signOut();
           navigate('/login', { replace: true });
           return;
         }
@@ -148,13 +142,19 @@ export default function Analytics() {
 
     void loadRoadmap();
     return () => controller.abort();
-  }, [navigate]);
+  }, [navigate, signOut, token]);
 
-  const currentRadarData = (roadmapMetrics?.by_task_type ?? []).map((item) => ({
-    label: TASK_TYPE_PRESENTATION[item.task_type]?.label ?? item.task_type,
-    score: item.total ? Math.round((item.completed / item.total) * 100) : 0,
-    icon: TASK_TYPE_PRESENTATION[item.task_type]?.icon ?? Award,
-  }));
+const currentRadarData = (roadmapMetrics?.by_task_type ?? []).map((item) => {
+  const presentation = Object.prototype.hasOwnProperty.call(TASK_TYPE_PRESENTATION, item.task_type)
+    ? TASK_TYPE_PRESENTATION[item.task_type as keyof typeof TASK_TYPE_PRESENTATION]
+    : undefined;
+
+  return {
+    label: presentation?.label ?? item.task_type,
+    score: item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0,
+    icon: presentation?.icon ?? Award,
+  };
+});
 
   const barChartTotals = useMemo(() => {
     return (roadmapMetrics?.daily_activity ?? []).reduce(
@@ -168,45 +168,65 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <main className="tw-6da6a3c3f7 tw-793346c736 tw-ca36a3519d tw-f0faeb26d6 tw-8fb6f42ff2 tw-ca6bf63030 tw-2689f39580">
-        Загружаем аналитику...
-      </main>
+      <div className="landing-page tw-793346c736">
+        <div className="cabinet-layout">
+          <CabinetNav />
+          <main className="cabinet-content tw-6da6a3c3f7 tw-f0faeb26d6 tw-8fb6f42ff2 tw-ca6bf63030 tw-2689f39580">
+            Загружаем аналитику...
+          </main>
+        </div>
+      </div>
     );
   }
 
   if (errorMessage) {
     return (
-      <main className="tw-6da6a3c3f7 tw-793346c736 tw-ca36a3519d tw-f0faeb26d6 tw-8fb6f42ff2">
-        <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">
-          {errorMessage}
-        </p>
-      </main>
+      <div className="landing-page tw-793346c736">
+        <div className="cabinet-layout">
+          <CabinetNav />
+          <main className="cabinet-content tw-6da6a3c3f7 tw-f0faeb26d6 tw-8fb6f42ff2">
+            <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">
+              {errorMessage}
+            </p>
+          </main>
+        </div>
+      </div>
     );
   }
 
   if (!roadmap || !hasPlan) {
     return (
-      <main className="tw-6da6a3c3f7 tw-793346c736 tw-ca36a3519d tw-e4256535da tw-f0faeb26d6 tw-8fb6f42ff2 tw-726bb2cc91 tw-0e12dc7de9">
-        <section className="landing__feature-card tw-3e7ce58d64">
-          <h1 className="landing__feature-title">Аналитика появится после создания roadmap</h1>
-          <p className="landing__feature-description">
-            Сгенерируйте учебный план, чтобы увидеть прогресс по этапам и готовность профиля.
-          </p>
-          <Link to="/roadmap" className="landing__primary-button tw-52083e7da4 tw-3960ffc248 tw-77a2a20e90">
-            Перейти к roadmap <ArrowRight className="tw-11e59c6d5f tw-dc7972ebf3" />
-          </Link>
-        </section>
-      </main>
+      <div className="landing-page tw-793346c736">
+        <div className="cabinet-layout">
+          <CabinetNav />
+          <main className="cabinet-content tw-6da6a3c3f7 tw-e4256535da tw-f0faeb26d6 tw-8fb6f42ff2 tw-726bb2cc91 tw-0e12dc7de9">
+            <section className="landing__feature-card tw-3e7ce58d64">
+              <h1 className="landing__feature-title">Аналитика появится после создания roadmap</h1>
+              <p className="landing__feature-description">
+                Сгенерируйте учебный план, чтобы увидеть прогресс по этапам и готовность профиля.
+              </p>
+              <Link to="/roadmap" className="landing__primary-button tw-52083e7da4 tw-3960ffc248 tw-77a2a20e90">
+                Перейти к roadmap <ArrowRight className="tw-11e59c6d5f tw-dc7972ebf3" />
+              </Link>
+            </section>
+          </main>
+        </div>
+      </div>
     );
   }
 
   if (!roadmapMetrics) {
     return (
-      <main className="tw-6da6a3c3f7 tw-793346c736 tw-ca36a3519d tw-f0faeb26d6 tw-8fb6f42ff2">
-        <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">
-          Не удалось загрузить метрики аналитики
-        </p>
-      </main>
+      <div className="landing-page tw-793346c736">
+        <div className="cabinet-layout">
+          <CabinetNav />
+          <main className="cabinet-content tw-6da6a3c3f7 tw-f0faeb26d6 tw-8fb6f42ff2">
+            <p role="alert" className="tw-fc7473ca09 tw-e83a7042bc tw-f3376ad261">
+              Не удалось загрузить метрики аналитики
+            </p>
+          </main>
+        </div>
+      </div>
     );
   }
 
@@ -248,8 +268,10 @@ export default function Analytics() {
 
   return (
     <div className="landing-page tw-793346c736">
-      {/* Главный центрированный контейнер с ограничением ширины и отступами */}
-      <main className="tw-726bb2cc91 tw-0e12dc7de9 tw-ca36a3519d tw-db15dd1d5b tw-f0faeb26d6 tw-8fb6f42ff2" style={{ maxWidth: '1400px' }}>
+      <div className="cabinet-layout">
+        <CabinetNav />
+        {/* Главный контейнер аналитики */}
+        <main className="cabinet-content tw-726bb2cc91 tw-0e12dc7de9 tw-db15dd1d5b tw-f0faeb26d6 tw-8fb6f42ff2" style={{ maxWidth: '1400px' }}>
         
         {/* ЖЕСТКО ВЫРАВНЕННЫЙ ПО ЛЕВОМУ КРАЮ ЗАГОЛОВОК */}
         <header className="tw-60fbb77139 tw-8dddea0773 tw-0c3bc98565 tw-65fdbade20 tw-18049387f0 tw-fe985ca216 tw-4102dddfda tw-bf60a82ffb tw-db6dd3a2aa" style={{ textAlign: 'left', alignItems: 'flex-start' }}>
@@ -540,7 +562,8 @@ export default function Analytics() {
           </div>
 
         </section>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

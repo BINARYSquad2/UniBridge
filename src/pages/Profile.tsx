@@ -18,6 +18,7 @@ import {
   Target
 } from 'lucide-react';
 import { taskTypeLabel } from '../lib/taskTypes';
+import { useSession } from '../lib/session.context';
 
 type UserRole = 'student' | 'mentor';
 
@@ -77,6 +78,7 @@ const PORTFOLIO_STAGE_LABELS: Record<string, string> = {
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
+  const { token, signOut } = useSession();
   const [profile, setProfile] = useState<CurrentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -84,11 +86,11 @@ export const Profile: React.FC = () => {
   const [roadmap, setRoadmap] = useState<CurrentRoadmap | null>(null);
 
 useEffect(() => {
-  const accessToken = localStorage.getItem('access_token');
-  if (!accessToken) {
+  if (!token) {
     navigate('/login', { replace: true });
     return;
   }
+  const accessToken = token;
 
   const controller = new AbortController();
   const loadProfile = async () => {
@@ -101,7 +103,7 @@ useEffect(() => {
 
       // 1. Если токен невалиден или пользователь не найден — чистим токен и редиректим
       if (response.status === 401 || response.status === 404) {
-        localStorage.removeItem('access_token');
+        signOut();
         navigate('/login', { replace: true });
         return;
       }
@@ -116,7 +118,7 @@ useEffect(() => {
 
       // 2. Если роль student, но самого профиля ученика нет в БД — чистим токен и на логин
       if (result.role === 'student' && !result.student_profile) {
-        localStorage.removeItem('access_token');
+        signOut();
         navigate('/login', { replace: true });
         return;
       }
@@ -149,7 +151,7 @@ useEffect(() => {
 
   void loadProfile();
   return () => controller.abort();
-}, [navigate]);
+}, [navigate, signOut, token]);
 
   if (isLoading) {
     return <main className="landing__container tw-793346c736 tw-ca36a3519d">Загружаем профиль...</main>;

@@ -23,6 +23,25 @@ func TestUpdateKanbanTaskRequestAcceptsDescription(t *testing.T) {
 	}
 }
 
+func TestCreateKanbanTaskRequestDecodesStatus(t *testing.T) {
+	var request createKanbanTaskRequest
+	if err := json.Unmarshal([]byte(`{
+		"title":"Finish roadmap",
+		"task_type":"academic",
+		"status":"in_progress",
+		"micro_steps":[{"id":"step-1","title":"Complete work","status":"todo","completed":false}]
+	}`), &request); err != nil {
+		t.Fatalf("decode create request: %v", err)
+	}
+
+	if request.Status != "in_progress" {
+		t.Fatalf("status = %q, want in_progress", request.Status)
+	}
+	if len(request.MicroSteps) != 1 || request.MicroSteps[0].Status != "todo" {
+		t.Fatalf("micro-step status was not decoded: %+v", request.MicroSteps)
+	}
+}
+
 func TestValidateKanbanTaskArtifact(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -44,6 +63,34 @@ func TestValidateKanbanTaskArtifact(t *testing.T) {
 			err := validateKanbanTaskArtifact(test.artifact)
 			if (err != nil) != test.wantErr {
 				t.Fatalf("validateKanbanTaskArtifact() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateKanbanMicroStepsStatus(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    string
+		wantError bool
+	}{
+		{name: "empty status remains backward compatible", status: ""},
+		{name: "todo", status: "todo"},
+		{name: "in progress", status: "in_progress"},
+		{name: "done", status: "done"},
+		{name: "invalid status", status: "pending", wantError: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateKanbanMicroSteps([]kanbanMicroStep{{
+				ID:        "step-1",
+				Title:     "Complete work",
+				Status:    test.status,
+				Completed: false,
+			}})
+			if (err != nil) != test.wantError {
+				t.Fatalf("validateKanbanMicroSteps() error = %v, wantError %v", err, test.wantError)
 			}
 		})
 	}

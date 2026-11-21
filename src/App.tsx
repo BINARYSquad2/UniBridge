@@ -6,9 +6,10 @@ import { Navbar } from './components/Navbar'
 import { Auth } from './pages/Auth'
 import { Profile } from './pages/Profile'
 import Requests from './pages/Requests'
-import { SessionProvider, useSession } from './lib/session'
+import { SessionProvider } from './lib/session'
+import { useSession } from './lib/session.context'
 import Roadmap from './pages/Roadmap'
-import Mentorslist from './pages/Mentorslist.tsx' 
+import Mentorslist from './pages/Mentorslist'
 import Analytics from './pages/Analytics'
 import KanbanBoard from './pages/Kanban'
 import './styles/App.css'
@@ -38,10 +39,10 @@ function PublicLayout() {
 }
 
 function ProtectedRoute({ children, role }: { children: ReactNode; role?: 'student' | 'mentor' }) {
-  const { user, loading, error } = useSession()
+  const { user, token, loading, error, refreshSession } = useSession()
   if (loading) return <p className="route-status" role="status">Загрузка аккаунта…</p>
-  if (!user) return error && localStorage.getItem('access_token')
-    ? <div className="route-status route-status--error" role="alert">{error}<button className="route-retry" onClick={() => window.location.reload()}>Повторить</button></div>
+  if (!user) return error && token
+    ? <div className="route-status route-status--error" role="alert">{error}<button className="route-retry" onClick={() => void refreshSession()}>Повторить</button></div>
     : <Navigate to="/login" replace />
   if (role && user.role !== role) return <Navigate to={user.role === 'mentor' ? '/requests' : '/mentorslist'} replace />
   return children

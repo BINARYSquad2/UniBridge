@@ -17,7 +17,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { taskTypeLabel } from '../lib/taskTypes';
+import { TASK_TYPE_OPTIONS, taskTypeLabel } from '../lib/taskTypes';
 
 interface MicroStep {
   id: string;
@@ -53,7 +53,7 @@ export const KanbanBoard: React.FC = () => {
   // Модалка создания задачи
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskType, setNewTaskType] = useState('development');
+  const [newTaskType, setNewTaskType] = useState<(typeof TASK_TYPE_OPTIONS)[number]['value']>('academic');
   const [newTaskMicroSteps, setNewTaskMicroSteps] = useState<string>('Изучить требования\nНаписать код\nПроверить');
   
   // Стейт генерации из Roadmap с помощью AI
@@ -184,7 +184,7 @@ export const KanbanBoard: React.FC = () => {
 
       const mockRoadmapTask = {
         title: 'Реализовать защиту роутов и JWT авторизацию',
-        task_type: 'backend',
+        task_type: 'academic',
         micro_steps: [
           { id: crypto.randomUUID(), title: 'Написать middleware проверки токена', completed: false },
           { id: crypto.randomUUID(), title: 'Интегрировать в Go роутер', completed: false },
@@ -248,7 +248,9 @@ export const KanbanBoard: React.FC = () => {
       if (!response.ok || !result?.id) throw new Error(result?.error ?? 'Не удалось создать задачу');
       setTasks((previous) => [result, ...previous]);
       setNewTaskTitle('');
-      setIsTaskModalOpen(false);
+      setNewTaskType('academic');
+      setNewTaskMicroSteps('\n Изучить источники \n Придумать гипотезу');
+      setIsTaskModalOpen(false);  
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось создать задачу');
@@ -396,12 +398,12 @@ export const KanbanBoard: React.FC = () => {
 
               <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}>Название задачи (родительская цель)</label>
+                  <label style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}>Название задачи</label>
                   <input
                     type="text"
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="Например: Архитектура бэкенда"
+                    placeholder="Например: Создание проекта"
                     style={{ width: '100%', fontSize: '13px', padding: '8px', borderRadius: 6, border: '1px solid #ccc' }}
                     required
                   />
@@ -411,13 +413,14 @@ export const KanbanBoard: React.FC = () => {
                   <label style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}>Направление (Тег)</label>
                   <select
                     value={newTaskType}
-                    onChange={(e) => setNewTaskType(e.target.value)}
+                    onChange={(e) => setNewTaskType(e.target.value as (typeof TASK_TYPE_OPTIONS)[number]['value'])}
                     style={{ width: '100%', fontSize: '13px', padding: '6px', borderRadius: 6, border: '1px solid #ccc' }}
                   >
-                    <option value="development">Development</option>
-                    <option value="backend">Backend</option>
-                    <option value="database">Database</option>
-                    <option value="presentation">Presentation</option>
+                    {TASK_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

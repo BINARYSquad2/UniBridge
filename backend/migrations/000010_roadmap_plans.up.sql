@@ -47,14 +47,25 @@ CREATE TABLE IF NOT EXISTS roadmap_tasks (
     position SMALLINT NOT NULL CHECK (position > 0),
     title VARCHAR(500) NOT NULL,
     duration VARCHAR(120) NOT NULL,
+    task_type VARCHAR(20)
+        CHECK (task_type IN ('ec', 'test', 'essay', 'recommendation', 'academic', 'other')),
+    due_date DATE,
+    due_date_source VARCHAR(12)
+        CHECK (due_date_source IN ('generated', 'backfilled', 'user')),
     completed BOOLEAN NOT NULL DEFAULT FALSE,
     completed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (roadmap_step_id, source_id),
     UNIQUE (roadmap_step_id, position),
+    CHECK ((due_date IS NULL) = (due_date_source IS NULL)),
     CHECK ((completed AND completed_at IS NOT NULL) OR (NOT completed AND completed_at IS NULL))
 );
+
+CREATE INDEX IF NOT EXISTS idx_roadmap_tasks_open_due
+    ON roadmap_tasks (due_date) WHERE NOT completed;
+CREATE INDEX IF NOT EXISTS idx_roadmap_tasks_completed_at
+    ON roadmap_tasks (completed_at) WHERE completed;
 
 CREATE TABLE IF NOT EXISTS roadmap_artifacts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -64,6 +75,37 @@ CREATE TABLE IF NOT EXISTS roadmap_artifacts (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (roadmap_step_id, position)
 );
+
+CREATE TABLE IF NOT EXISTS roadmap_micro_steps (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    roadmap_task_id UUID NOT NULL REFERENCES roadmap_tasks(id) ON DELETE CASCADE,
+    position SMALLINT NOT NULL CHECK (position > 0),
+    title VARCHAR(500) NOT NULL,
+    completed BOOLEAN NOT NULL DEFAULT FALSE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (roadmap_task_id, position) DEFERRABLE INITIALLY DEFERRED,
+    CHECK ((completed AND completed_at IS NOT NULL) OR (NOT completed AND completed_at IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS roadmap_task_events (
+    id BIGSERIAL PRIMARY KEY,
+    roadmap_task_id UUID NOT NULL REFERENCES roadmap_tasks(id) ON DELETE CASCADE,
+    roadmap_plan_id UUID NOT NULL REFERENCES roadmap_plans(id) ON DELETE CASCADE,
+    event_type VARCHAR(30) NOT NULL
+        CHECK (event_type IN (
+            'completed', 'uncompleted', 'postponed',
+            'micro_step_completed', 'micro_step_uncompleted'
+        )),
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_roadmap_task_events_plan_created
+    ON roadmap_task_events (roadmap_plan_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_roadmap_task_events_task_created
+    ON roadmap_task_events (roadmap_task_id, created_at);
 
 DO $$
 BEGIN
@@ -86,6 +128,17 @@ BEGIN
     ) THEN
         CREATE TRIGGER update_roadmap_tasks_updated_at
             BEFORE UPDATE ON roadmap_tasks
+            FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_roadmap_micro_steps_updated_at'
+          AND tgrelid = 'roadmap_micro_steps'::regclass
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER update_roadmap_micro_steps_updated_at
+            BEFORE UPDATE ON roadmap_micro_steps
             FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
     END IF;
 END

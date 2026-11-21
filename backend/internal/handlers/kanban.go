@@ -18,6 +18,7 @@ type Kanban struct {
 type kanbanMicroStep struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
+	Status    string `json:"status"`
 	Completed bool   `json:"completed"`
 }
 
@@ -38,6 +39,7 @@ type kanbanTask struct {
 type createKanbanTaskRequest struct {
 	Title      string            `json:"title"`
 	TaskType   string            `json:"task_type"`
+	Status     string            `json:"status"`
 	MicroSteps []kanbanMicroStep `json:"micro_steps"`
 }
 
@@ -245,16 +247,25 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var input createKanbanTaskRequest
 	if err := decodeAuthRequest(w, r, &input); err != nil {
+		log.Printf("create task decode error: %v", err)
 		writeAuthError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	input.Title = strings.TrimSpace(input.Title)
 	input.TaskType = strings.TrimSpace(input.TaskType)
+	input.Status = strings.TrimSpace(input.Status)
 	if input.TaskType == "" {
 		input.TaskType = "other"
 	}
+	if input.Status == "" {
+		input.Status = "todo"
+	}
 	if input.Title == "" || len(input.Title) > 500 || len(input.TaskType) > 100 || len(input.MicroSteps) > 100 {
 		writeAuthError(w, http.StatusBadRequest, "task fields are invalid")
+		return
+	}
+	if input.Status != "todo" && input.Status != "in_progress" && input.Status != "done" {
+		writeAuthError(w, http.StatusBadRequest, "invalid task status")
 		return
 	}
 	if err := validateKanbanMicroSteps(input.MicroSteps); err != nil {
@@ -269,10 +280,10 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 	var task kanbanTask
 	var encodedMicroSteps string
 	err = h.DB.QueryRowContext(r.Context(), `
-		INSERT INTO kanban_tasks (user_id, title, task_type, micro_steps)
-		VALUES ($1, $2, $3, $4::jsonb)
+		INSERT INTO kanban_tasks (user_id, title, task_type, status, micro_steps)
+		VALUES ($1, $2, $3, $4, $5::jsonb)
 		RETURNING id::text, title, task_type, status, micro_steps::text
-	`, userID, input.Title, input.TaskType, string(microStepsJSON)).Scan(
+	`, userID, input.Title, input.TaskType, input.Status, string(microStepsJSON)).Scan(
 		&task.ID, &task.Title, &task.TaskType, &task.Status, &encodedMicroSteps,
 	)
 	if err != nil {
@@ -368,6 +379,45 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	writeKanbanJSON(w, http.StatusOK, task)
 }
 
+func (h Kanban) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	userID, err := authenticatedUserID(r, h.JWTSecret)
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	taskID := r.PathValue("taskID")
+	if taskID == "" {
+		writeAuthError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
+
+	result, err := h.DB.ExecContext(r.Context(), `
+		DELETE FROM kanban_tasks
+		WHERE id = $1 AND user_id = $2
+	`, taskID, userID)
+	if err != nil {
+		writeKanbanError(w, "delete task", err)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		writeKanbanError(w, "count deleted tasks", err)
+		return
+	}
+	if rowsAffected == 0 {
+		writeAuthError(w, http.StatusNotFound, "kanban task not found")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func validateKanbanTaskArtifact(artifact kanbanTaskArtifact) error {
 	if artifact.Value == "" || len(artifact.Value) > 5000 {
 		return errors.New("artifact value must contain at most 5000 characters")
@@ -392,6 +442,10 @@ func validateKanbanMicroSteps(microSteps []kanbanMicroStep) error {
 	for _, microStep := range microSteps {
 		if strings.TrimSpace(microStep.ID) == "" || strings.TrimSpace(microStep.Title) == "" || len(microStep.Title) > 500 {
 			return errors.New("each micro-step requires an id and a title of at most 500 characters")
+		}
+		status := strings.TrimSpace(microStep.Status)
+		if status != "" && status != "todo" && status != "in_progress" && status != "done" {
+			return errors.New("each micro-step requires status to be todo, in_progress or done")
 		}
 	}
 	return nil
