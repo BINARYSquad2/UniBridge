@@ -198,6 +198,18 @@ func (h Roadmap) Generate(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(plan)
 }
 
+func (h Roadmap) loadActivePlanID(ctx context.Context, userID string) (string, error) {
+	var planID string
+	err := h.DB.QueryRowContext(ctx, `
+		SELECT plan.id::text
+		FROM roadmap_plans AS plan
+		JOIN student_profiles AS profile ON profile.id = plan.student_profile_id
+		WHERE profile.user_id = $1 AND plan.is_active
+		LIMIT 1
+	`, userID).Scan(&planID)
+	return planID, err
+}
+
 func (h Roadmap) Current(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")

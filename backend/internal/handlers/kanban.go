@@ -63,10 +63,19 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.QueryContext(r.Context(), `
-		SELECT id::text, title, task_type, status, micro_steps::text, artifact_type, artifact_value
-		FROM kanban_tasks
-		WHERE user_id = $1
-		ORDER BY created_at DESC, id
+		SELECT task.id::text, task.title, task.task_type, task.status,
+			COALESCE(jsonb_agg(jsonb_build_object(
+				'id', micro.id::text,
+				'title', micro.title,
+				'status', micro.status,
+				'completed', micro.completed
+			) ORDER BY micro.position) FILTER (WHERE micro.id IS NOT NULL), '[]'::jsonb)::text,
+			task.artifact_type, task.artifact_value
+		FROM kanban_tasks AS task
+		LEFT JOIN kanban_micro_steps AS micro ON micro.kanban_task_id = task.id
+		WHERE task.user_id = $1
+		GROUP BY task.id
+		ORDER BY task.created_at DESC, task.id
 	`, userID)
 	if err != nil {
 		writeKanbanError(w, "list tasks", err)
@@ -149,6 +158,7 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 			COALESCE(jsonb_agg(jsonb_build_object(
 				'id', micro.id::text,
 				'title', micro.title,
+				'status', CASE WHEN micro.completed THEN 'done' ELSE 'todo' END,
 				'completed', micro.completed
 			) ORDER BY micro.position) FILTER (WHERE micro.id IS NOT NULL), '[]'::jsonb)::text
 		FROM roadmap_tasks AS task
@@ -206,26 +216,32 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 
 	added := 0
 	for _, task := range importedTasks {
-		encodedMicroSteps, err := json.Marshal(task.MicroSteps)
-		if err != nil {
-			writeKanbanError(w, "encode roadmap task micro-steps", err)
-			return
-		}
-		result, err := tx.ExecContext(r.Context(), `
-			INSERT INTO kanban_tasks (user_id, source_roadmap_task_id, title, task_type, status, micro_steps)
-			VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+		var kanbanTaskID string
+		err := tx.QueryRowContext(r.Context(), `
+			INSERT INTO kanban_tasks (user_id, source_roadmap_task_id, title, task_type, status)
+			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (user_id, source_roadmap_task_id) DO NOTHING
-		`, userID, task.ID, task.Title, task.TaskType, task.Status, string(encodedMicroSteps))
+			RETURNING id::text
+		`, userID, task.ID, task.Title, task.TaskType, task.Status).Scan(&kanbanTaskID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
 		if err != nil {
 			writeKanbanError(w, "save imported task", err)
 			return
 		}
-		count, err := result.RowsAffected()
-		if err != nil {
-			writeKanbanError(w, "count imported tasks", err)
-			return
+		added++
+		for index, microStep := range task.MicroSteps {
+			microStep.Status = kanbanMicroStepStatus(microStep)
+			_, err := tx.ExecContext(r.Context(), `
+				INSERT INTO kanban_micro_steps (kanban_task_id, position, title, status, completed, completed_at)
+				VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP ELSE NULL END)
+			`, kanbanTaskID, index+1, microStep.Title, microStep.Status, microStep.Completed)
+			if err != nil {
+				writeKanbanError(w, "save imported task micro-step", err)
+				return
+			}
 		}
-		added += int(count)
 	}
 	if err := tx.Commit(); err != nil {
 		writeKanbanError(w, "commit roadmap task import", err)
@@ -272,26 +288,45 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	microStepsJSON, err := json.Marshal(input.MicroSteps)
+	tx, err := h.DB.BeginTx(r.Context(), nil)
 	if err != nil {
-		writeKanbanError(w, "encode task micro-steps", err)
+		writeKanbanError(w, "begin task creation", err)
 		return
 	}
+	defer tx.Rollback()
+
 	var task kanbanTask
-	var encodedMicroSteps string
-	err = h.DB.QueryRowContext(r.Context(), `
-		INSERT INTO kanban_tasks (user_id, title, task_type, status, micro_steps)
-		VALUES ($1, $2, $3, $4, $5::jsonb)
-		RETURNING id::text, title, task_type, status, micro_steps::text
-	`, userID, input.Title, input.TaskType, input.Status, string(microStepsJSON)).Scan(
-		&task.ID, &task.Title, &task.TaskType, &task.Status, &encodedMicroSteps,
+	err = tx.QueryRowContext(r.Context(), `
+		INSERT INTO kanban_tasks (user_id, title, task_type, status)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id::text, title, task_type, status
+	`, userID, input.Title, input.TaskType, input.Status).Scan(
+		&task.ID, &task.Title, &task.TaskType, &task.Status,
 	)
 	if err != nil {
 		writeKanbanError(w, "create task", err)
 		return
 	}
-	if err := json.Unmarshal([]byte(encodedMicroSteps), &task.MicroSteps); err != nil {
-		writeKanbanError(w, "decode created task micro-steps", err)
+
+	task.MicroSteps = make([]kanbanMicroStep, 0, len(input.MicroSteps))
+	for index, microStep := range input.MicroSteps {
+		microStep.Status = kanbanMicroStepStatus(microStep)
+		var saved kanbanMicroStep
+		err = tx.QueryRowContext(r.Context(), `
+			INSERT INTO kanban_micro_steps (kanban_task_id, position, title, status, completed, completed_at)
+			VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP ELSE NULL END)
+			RETURNING id::text, title, status, completed
+		`, task.ID, index+1, microStep.Title, microStep.Status, microStep.Completed).Scan(
+			&saved.ID, &saved.Title, &saved.Status, &saved.Completed,
+		)
+		if err != nil {
+			writeKanbanError(w, "create task micro-step", err)
+			return
+		}
+		task.MicroSteps = append(task.MicroSteps, saved)
+	}
+	if err := tx.Commit(); err != nil {
+		writeKanbanError(w, "commit task creation", err)
 		return
 	}
 	writeKanbanJSON(w, http.StatusCreated, task)
@@ -341,24 +376,25 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		}
 		artifactType, artifactValue = artifact.Type, artifact.Value
 	}
-	microStepsJSON, err := json.Marshal(*input.MicroSteps)
+	tx, err := h.DB.BeginTx(r.Context(), nil)
 	if err != nil {
-		writeKanbanError(w, "encode task micro-steps", err)
+		writeKanbanError(w, "begin task update", err)
 		return
 	}
+	defer tx.Rollback()
+
 	var task kanbanTask
-	var encodedMicroSteps string
 	var savedArtifactType, savedArtifactValue sql.NullString
-	err = h.DB.QueryRowContext(r.Context(), `
+	err = tx.QueryRowContext(r.Context(), `
 		UPDATE kanban_tasks
-		SET status = $1, micro_steps = $2::jsonb,
-			artifact_type = COALESCE($3, artifact_type),
-			artifact_value = COALESCE($4, artifact_value),
+		SET status = $1,
+			artifact_type = COALESCE($2, artifact_type),
+			artifact_value = COALESCE($3, artifact_value),
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $5 AND user_id = $6
-		RETURNING id::text, title, task_type, status, micro_steps::text, artifact_type, artifact_value
-	`, input.Status, string(microStepsJSON), artifactType, artifactValue, r.PathValue("taskID"), userID).Scan(
-		&task.ID, &task.Title, &task.TaskType, &task.Status, &encodedMicroSteps,
+		WHERE id = $4 AND user_id = $5
+		RETURNING id::text, title, task_type, status, artifact_type, artifact_value
+	`, input.Status, artifactType, artifactValue, r.PathValue("taskID"), userID).Scan(
+		&task.ID, &task.Title, &task.TaskType, &task.Status,
 		&savedArtifactType, &savedArtifactValue,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -369,8 +405,30 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		writeKanbanError(w, "update task", err)
 		return
 	}
-	if err := json.Unmarshal([]byte(encodedMicroSteps), &task.MicroSteps); err != nil {
-		writeKanbanError(w, "decode updated task micro-steps", err)
+	if _, err := tx.ExecContext(r.Context(), `DELETE FROM kanban_micro_steps WHERE kanban_task_id = $1`, task.ID); err != nil {
+		writeKanbanError(w, "replace task micro-steps", err)
+		return
+	}
+
+	task.MicroSteps = make([]kanbanMicroStep, 0, len(*input.MicroSteps))
+	for index, microStep := range *input.MicroSteps {
+		microStep.Status = kanbanMicroStepStatus(microStep)
+		var saved kanbanMicroStep
+		err = tx.QueryRowContext(r.Context(), `
+			INSERT INTO kanban_micro_steps (kanban_task_id, position, title, status, completed, completed_at)
+			VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP ELSE NULL END)
+			RETURNING id::text, title, status, completed
+		`, task.ID, index+1, microStep.Title, microStep.Status, microStep.Completed).Scan(
+			&saved.ID, &saved.Title, &saved.Status, &saved.Completed,
+		)
+		if err != nil {
+			writeKanbanError(w, "save task micro-step", err)
+			return
+		}
+		task.MicroSteps = append(task.MicroSteps, saved)
+	}
+	if err := tx.Commit(); err != nil {
+		writeKanbanError(w, "commit task update", err)
 		return
 	}
 	if savedArtifactType.Valid {
@@ -449,6 +507,16 @@ func validateKanbanMicroSteps(microSteps []kanbanMicroStep) error {
 		}
 	}
 	return nil
+}
+
+func kanbanMicroStepStatus(microStep kanbanMicroStep) string {
+	if microStep.Status != "" {
+		return strings.TrimSpace(microStep.Status)
+	}
+	if microStep.Completed {
+		return "done"
+	}
+	return "todo"
 }
 
 func writeKanbanJSON(w http.ResponseWriter, status int, value any) {

@@ -68,8 +68,10 @@ The server will listen on `http://0.0.0.0:8080` by default.
 	type breakdowns, overdue counts, and daily completion activity.
 - Migrations `000006`–`000009` historically added task timing, event history,
 	micro-steps, and micro-step timing fields.
+- Migration `000011` creates Kanban tasks, normalized micro-steps, and persistent
+	links or written reflections for task artifacts.
 - Migration `000012` removes task duration estimates, timers, elapsed-time fields,
 	weekly workload estimates, and time-based analytics. Removed timing data
 	cannot be restored by rolling this migration back.
-- Migration `000013` adds persistent links and written reflections for Kanban
-	tasks.
+- Migration `000013` adds target universities and academic profile fields to
+	student profiles.

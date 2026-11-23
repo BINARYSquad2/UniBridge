@@ -1,1 +1,0 @@
--- The repaired column and index are owned by migration 000002.
