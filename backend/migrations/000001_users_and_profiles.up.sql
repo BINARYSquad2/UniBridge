@@ -29,9 +29,13 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+<<<<<<< HEAD
     name VARCHAR(255) NOT NULL DEFAULT '',
     surname VARCHAR(255) NOT NULL DEFAULT '',
     full_name VARCHAR(255) NOT NULL DEFAULT '',
+=======
+    full_name VARCHAR(255) NOT NULL,
+>>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
     role user_role NOT NULL DEFAULT 'student',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

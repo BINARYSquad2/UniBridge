@@ -67,7 +67,10 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 			COALESCE(jsonb_agg(jsonb_build_object(
 				'id', micro.id::text,
 				'title', micro.title,
+<<<<<<< HEAD
 				'status', micro.status,
+=======
+>>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 				'completed', micro.completed
 			) ORDER BY micro.position) FILTER (WHERE micro.id IS NOT NULL), '[]'::jsonb)::text,
 			task.artifact_type, task.artifact_value
@@ -232,11 +235,18 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 		}
 		added++
 		for index, microStep := range task.MicroSteps {
+<<<<<<< HEAD
 			microStep.Status = kanbanMicroStepStatus(microStep)
 			_, err := tx.ExecContext(r.Context(), `
 				INSERT INTO kanban_micro_steps (kanban_task_id, position, title, status, completed, completed_at)
 				VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 THEN CURRENT_TIMESTAMP ELSE NULL END)
 			`, kanbanTaskID, index+1, microStep.Title, microStep.Status, microStep.Completed)
+=======
+			_, err := tx.ExecContext(r.Context(), `
+				INSERT INTO kanban_micro_steps (kanban_task_id, position, title, completed, completed_at)
+				VALUES ($1, $2, $3, $4, CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE NULL END)
+			`, kanbanTaskID, index+1, microStep.Title, microStep.Completed)
+>>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 			if err != nil {
 				writeKanbanError(w, "save imported task micro-step", err)
 				return
@@ -297,10 +307,17 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	var task kanbanTask
 	err = tx.QueryRowContext(r.Context(), `
+<<<<<<< HEAD
 		INSERT INTO kanban_tasks (user_id, title, task_type, status)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id::text, title, task_type, status
 	`, userID, input.Title, input.TaskType, input.Status).Scan(
+=======
+		INSERT INTO kanban_tasks (user_id, title, task_type)
+		VALUES ($1, $2, $3)
+		RETURNING id::text, title, task_type, status
+	`, userID, input.Title, input.TaskType).Scan(
+>>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 		&task.ID, &task.Title, &task.TaskType, &task.Status,
 	)
 	if err != nil {
@@ -310,6 +327,7 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	task.MicroSteps = make([]kanbanMicroStep, 0, len(input.MicroSteps))
 	for index, microStep := range input.MicroSteps {
+<<<<<<< HEAD
 		microStep.Status = kanbanMicroStepStatus(microStep)
 		var saved kanbanMicroStep
 		err = tx.QueryRowContext(r.Context(), `
@@ -318,6 +336,15 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 			RETURNING id::text, title, status, completed
 		`, task.ID, index+1, microStep.Title, microStep.Status, microStep.Completed).Scan(
 			&saved.ID, &saved.Title, &saved.Status, &saved.Completed,
+=======
+		var saved kanbanMicroStep
+		err = tx.QueryRowContext(r.Context(), `
+			INSERT INTO kanban_micro_steps (kanban_task_id, position, title, completed, completed_at)
+			VALUES ($1, $2, $3, $4, CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE NULL END)
+			RETURNING id::text, title, completed
+		`, task.ID, index+1, microStep.Title, microStep.Completed).Scan(
+			&saved.ID, &saved.Title, &saved.Completed,
+>>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 		)
 		if err != nil {
 			writeKanbanError(w, "create task micro-step", err)
@@ -412,6 +439,7 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	task.MicroSteps = make([]kanbanMicroStep, 0, len(*input.MicroSteps))
 	for index, microStep := range *input.MicroSteps {
+<<<<<<< HEAD
 		microStep.Status = kanbanMicroStepStatus(microStep)
 		var saved kanbanMicroStep
 		err = tx.QueryRowContext(r.Context(), `
@@ -420,6 +448,15 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 			RETURNING id::text, title, status, completed
 		`, task.ID, index+1, microStep.Title, microStep.Status, microStep.Completed).Scan(
 			&saved.ID, &saved.Title, &saved.Status, &saved.Completed,
+=======
+		var saved kanbanMicroStep
+		err = tx.QueryRowContext(r.Context(), `
+			INSERT INTO kanban_micro_steps (kanban_task_id, position, title, completed, completed_at)
+			VALUES ($1, $2, $3, $4, CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE NULL END)
+			RETURNING id::text, title, completed
+		`, task.ID, index+1, microStep.Title, microStep.Completed).Scan(
+			&saved.ID, &saved.Title, &saved.Completed,
+>>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 		)
 		if err != nil {
 			writeKanbanError(w, "save task micro-step", err)
