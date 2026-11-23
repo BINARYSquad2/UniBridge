@@ -11,11 +11,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-const (
-	interruptedMigrationVersion = 11
-	previousMigrationVersion    = 10
-)
-
 //go:embed *.sql
 var migrationFiles embed.FS
 
@@ -38,13 +33,7 @@ func Apply(databaseURL string) error {
 		return fmt.Errorf("read migration version: %w", err)
 	}
 	if dirty {
-		if version != interruptedMigrationVersion {
-			return fmt.Errorf("database migration %d is dirty; manual repair is required", version)
-		}
-		log.Printf("retrying interrupted migration %d", version)
-		if err := runner.Force(previousMigrationVersion); err != nil {
-			return fmt.Errorf("prepare interrupted migration retry: %w", err)
-		}
+		return fmt.Errorf("database migration %d is dirty; manual repair is required", version)
 	}
 
 	if err := runner.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {

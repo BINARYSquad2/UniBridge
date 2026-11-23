@@ -1,1 +1,0 @@
-ALTER TABLE mentor_profiles ADD COLUMN IF NOT EXISTS subjects TEXT[] NOT NULL DEFAULT '{}';

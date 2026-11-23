@@ -204,12 +204,7 @@ func (h Roadmap) Metrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var metrics roadmapMetricsResponse
-	err = h.DB.QueryRowContext(r.Context(), `
-		SELECT id::text FROM roadmap_plans
-		WHERE student_profile_id = (
-			SELECT id FROM student_profiles WHERE user_id = $1
-		) AND is_active
-	`, userID).Scan(&metrics.PlanID)
+	metrics.PlanID, err = h.loadActivePlanID(r.Context(), userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusNotFound, "roadmap not found")
 		return

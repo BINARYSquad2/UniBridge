@@ -99,17 +99,18 @@ func (a Auth) CurrentProfile(w http.ResponseWriter, r *http.Request) {
 
 	var profile currentProfileResponse
 	err = a.DB.QueryRowContext(r.Context(), `
-		SELECT id::text, email, name, surname, full_name, role::text
+		SELECT id::text, email, full_name, role::text
 		FROM users
 		WHERE id = $1
 	`, userID).Scan(
 		&profile.ID,
 		&profile.Email,
-		&profile.Name,
-		&profile.Surname,
 		&profile.FullName,
 		&profile.Role,
 	)
+	if err == nil {
+		profile.Name, profile.Surname = splitFullName(profile.FullName)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeAuthError(w, http.StatusNotFound, "user not found")
 		return
@@ -523,4 +524,15 @@ func writeAuthError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func splitFullName(fullName string) (name, surname string) {
+	parts := strings.Fields(strings.TrimSpace(fullName))
+	if len(parts) == 0 {
+		return "", ""
+	}
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], strings.Join(parts[1:], " ")
 }
