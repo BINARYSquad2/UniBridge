@@ -42,3 +42,33 @@ func Apply(databaseURL string) error {
 	log.Println("Database migrations applied successfully!")
 	return nil
 }
+
+func Rollback(databaseURL string) error {
+	source, err := iofs.New(migrationFiles, ".")
+	if err != nil {
+		return fmt.Errorf("load migration files: %w", err)
+	}
+
+	runner, err := migrate.NewWithSourceInstance("iofs", source, databaseURL)
+	if err != nil {
+		return fmt.Errorf("initialize migration runner: %w", err)
+	}
+	defer func() {
+		_, _ = runner.Close()
+	}()
+
+	version, dirty, err := runner.Version()
+	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
+		return fmt.Errorf("read migration version: %w", err)
+	}
+	if dirty {
+		return fmt.Errorf("database migration %d is dirty; manual repair is required", version)
+	}
+
+	// Вместо Up() вызываем Down() для отката всех миграций
+	if err := runner.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("rollback migrations: %w", err)
+	}
+	log.Println("Database migrations rolled back successfully!")
+	return nil
+}
