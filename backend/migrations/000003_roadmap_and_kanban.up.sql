@@ -128,10 +128,7 @@ CREATE TABLE IF NOT EXISTS kanban_micro_steps (
     kanban_task_id UUID NOT NULL REFERENCES kanban_tasks(id) ON DELETE CASCADE,
     position SMALLINT NOT NULL CHECK (position > 0),
     title VARCHAR(500) NOT NULL,
-<<<<<<< HEAD
     status VARCHAR(20) NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
-=======
->>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
     completed BOOLEAN NOT NULL DEFAULT FALSE,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

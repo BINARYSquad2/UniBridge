@@ -1,10 +1,7 @@
 package migrations
 
 import (
-<<<<<<< HEAD
 	"database/sql"
-=======
->>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 	"os"
 	"testing"
 
@@ -103,7 +100,6 @@ func TestEmbeddedMigrationVersionsAreContiguous(t *testing.T) {
 
 	if expected != 3 {
 		t.Fatalf("total migration count = %d, want 3", expected)
-<<<<<<< HEAD
 	}
 }
 
@@ -174,7 +170,5 @@ func TestApplyFromEmptyDatabase(t *testing.T) {
 	}
 	if !schemaReady {
 		t.Fatal("expected core tables and student profile columns are missing")
-=======
->>>>>>> cba68192c04fe08307e8e54ed28ebf3435ec4b87
 	}
 }
