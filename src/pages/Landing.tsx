@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useSession } from '../lib/session';
+import { useSession } from '../lib/session.context';
 import '../styles/Landing.css';
 import {
   GraduationCap,

@@ -7,8 +7,9 @@ import {
   GraduationCap,
   BookOpen,
   Kanban,
+  BarChart3,
 } from 'lucide-react'
-import { useSession } from '../lib/session'
+import { useSession } from '../lib/session.context'
 import '../styles/CabinetNav.css'
 export function CabinetNav() {
   const { user } = useSession()
@@ -19,6 +20,11 @@ export function CabinetNav() {
       to: '/profile',
       label: 'Мой профиль',
       Icon: LayoutDashboard,
+    },
+    {
+      to: '/analytics',
+      label: 'Аналитика',
+      Icon: BarChart3,
     },
     ...(mentor
       ? [

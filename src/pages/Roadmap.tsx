@@ -29,6 +29,7 @@ interface MicroStep {
 
 interface Task {
   id: string;
+  track: string;
   title: string;
   task_type: string;
   completed: boolean;
@@ -37,6 +38,7 @@ interface Task {
 
 interface RoadmapStep {
   id: string;
+  track: string;
   phase: string;
   title: string;
   description: string;
@@ -58,12 +60,21 @@ interface GeneratedRoadmap {
   steps: RoadmapStep[];
 }
 
+type RoadmapTrack = 'academics' | 'leadership' | 'impact';
+
+const ROADMAP_TRACKS: { id: RoadmapTrack; label: string }[] = [
+  { id: 'academics', label: 'Академический' },
+  { id: 'leadership', label: 'Лидерство' },
+  { id: 'impact', label: 'Влияние' },
+];
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 // Данные по умолчанию (До генерации)
 const INITIAL_STEPS: RoadmapStep[] = [
   {
     id: 'step-1',
+    track: 'academics',
     phase: 'Фаза 1',
     title: 'Подготовка к планированию',
     description: 'Нажмите кнопку «Сгенерировать roadmap», чтобы загрузить академический план на 2026–2029 гг.',
@@ -72,7 +83,7 @@ const INITIAL_STEPS: RoadmapStep[] = [
     impactScore: 50,
     artifacts: ['Draft Plan JSON'],
     tasks: [
-      { id: 't0', title: 'Нажать кнопку генерации плана выше', task_type: 'other', completed: false, micro_steps: [] }
+      { id: 't0', track: 'academics', title: 'Нажать кнопку генерации плана выше', task_type: 'other', completed: false, micro_steps: [] }
     ]
   }
 ];
@@ -81,6 +92,7 @@ export const Roadmap: React.FC = () => {
   const navigate = useNavigate();
   const [steps, setSteps] = useState<RoadmapStep[]>(INITIAL_STEPS);
   const [activeStepId, setActiveStepId] = useState<string>('step-1');
+  const [selectedTrack, setSelectedTrack] = useState<RoadmapTrack>('academics');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isAddingToKanban, setIsAddingToKanban] = useState(false);
   const [isGenerated, setIsGenerated] = useState<boolean>(false);
@@ -295,6 +307,7 @@ export const Roadmap: React.FC = () => {
   };
 
   const addActiveStepToKanban = async () => {
+    if (!activeStep) return;
     const accessToken = localStorage.getItem('access_token');
     if (!accessToken) {
       setErrorMessage('Войдите в аккаунт, чтобы добавить задачи в Kanban.');
@@ -318,7 +331,14 @@ export const Roadmap: React.FC = () => {
     }
   };
 
-  const activeStep = steps.find(s => s.id === activeStepId) || steps[0];
+  const visibleSteps = steps.filter((step) => (step.track || 'academics') === selectedTrack);
+  const activeStep = visibleSteps.find((step) => step.id === activeStepId) || visibleSteps[0];
+
+  const selectTrack = (track: RoadmapTrack) => {
+    setSelectedTrack(track);
+    const firstStep = steps.find((step) => (step.track || 'academics') === track);
+    if (firstStep) setActiveStepId(firstStep.id);
+  };
 
   const totalTasks = steps.reduce((acc, s) => acc + s.tasks.length, 0);
   const completedTasks = steps.reduce(
@@ -405,8 +425,34 @@ export const Roadmap: React.FC = () => {
 
         </header>
 
+        {isGenerated && (
+          <div className="roadmap-track-switcher" role="group" aria-label="Направление дорожной карты">
+            {ROADMAP_TRACKS.map((track) => {
+              const trackSteps = steps.filter((step) => (step.track || 'academics') === track.id);
+              const isSelected = selectedTrack === track.id;
+              return (
+                <button
+                  key={track.id}
+                  type="button"
+                  aria-pressed={isSelected}
+                  disabled={trackSteps.length === 0}
+                  onClick={() => selectTrack(track.id)}
+                  className={`roadmap-track-switcher__tab${isSelected ? ' roadmap-track-switcher__tab--active' : ''}`}
+                >
+                  <span>{track.label}</span>
+                  <span className="roadmap-track-switcher__count">{trackSteps.length}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Main Grid Layout */}
-        <div className="roadmap-grid" style={{ marginTop: '24px' }}>
+        <div
+          className="roadmap-grid"
+          id="roadmap-track-panel"
+          style={{ marginTop: '24px' }}
+        >
           
           {/* Left Column: Steps List (5 cols) */}
           <div className="roadmap-steps">
@@ -415,7 +461,7 @@ export const Roadmap: React.FC = () => {
             </span>
 
             <div className="roadmap-timeline">
-              {steps.map((step) => {
+              {visibleSteps.map((step) => {
                 const isActive = step.id === activeStepId;
                 const isCompleted = step.status === 'completed';
                 const isInProgress = step.status === 'in_progress';
@@ -459,7 +505,7 @@ export const Roadmap: React.FC = () => {
           </div>
 
           {/* Right Column: Active Step Details (7 cols) */}
-          <div className="roadmap-details">
+          {activeStep ? <div className="roadmap-details">
             
             {/* Step Header */}
             <div className="tw-6ed543e2fb">
@@ -626,7 +672,11 @@ export const Roadmap: React.FC = () => {
               </button>
             </div>
 
-          </div>
+          </div> : (
+            <div className="roadmap-details roadmap-details--empty">
+              <p>В этом направлении пока нет этапов. Сгенерируйте план заново, чтобы добавить их.</p>
+            </div>
+          )}
 
         </div>
 

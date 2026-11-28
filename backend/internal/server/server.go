@@ -46,6 +46,7 @@ func New(cfg config.Config, db *sql.DB) *http.Server {
 	mux.HandleFunc("GET /api/v1/kanban/tasks", kanban.ListTasks)
 	mux.HandleFunc("POST /api/v1/kanban/tasks", kanban.CreateTask)
 	mux.HandleFunc("PATCH /api/v1/kanban/tasks/{taskID}", kanban.UpdateTask)
+	mux.HandleFunc("DELETE /api/v1/kanban/tasks/{taskID}", kanban.DeleteTask)
 	mux.HandleFunc("POST /api/v1/kanban/roadmap-steps/{stepID}/import", kanban.ImportRoadmapStep)
 
 	mux.HandleFunc("POST /api/v1/roadmap/generate", roadmap.Generate)

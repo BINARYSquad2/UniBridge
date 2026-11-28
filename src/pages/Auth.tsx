@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import '../styles/Auth.css';
 import { SUBJECT_DIRECTIONS, GROUPED_DIRECTIONS } from '../lib/subjectDirections';
 import { useNavigate } from 'react-router-dom';
-import { useSession, type User } from '../lib/session';
+import { useSession, type User } from '../lib/session.context';
 
 type AuthMode = 'login' | 'register';
 type Role = 'student' | 'mentor';

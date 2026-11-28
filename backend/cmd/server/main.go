@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,6 +17,9 @@ import (
 )
 
 func main() {
+	rollback := flag.Bool("rollback", false, "roll back all database migrations and exit")
+	flag.Parse()
+
 	cfg, err := config.New()
 	if err != nil {
 		log.Fatalf("configuration failed: %v", err)
@@ -31,6 +35,13 @@ func main() {
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		log.Fatalf("database is unavailable: %v", err)
+	}
+
+	if *rollback {
+		if err := migrations.Rollback(cfg.DatabaseURL); err != nil {
+			log.Fatalf("database migrations rollback failed: %v", err)
+		}
+		return
 	}
 
 	if err := migrations.Apply(cfg.DatabaseURL); err != nil {

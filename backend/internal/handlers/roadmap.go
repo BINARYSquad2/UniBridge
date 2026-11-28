@@ -30,8 +30,8 @@ const maxLLMModelAttempts = 4
 const maxGeminiRetriesPerModel = 3
 const geminiRetryBaseDelay = 500 * time.Millisecond
 const geminiRetryMaxJitter = 0.5
-const minRoadmapMilestones = 4
-const maxRoadmapMilestones = 5
+const minRoadmapMilestones = 3
+const maxRoadmapMilestones = 6
 const minRoadmapTasksPerMilestone = 2
 const maxRoadmapTasksPerMilestone = 4
 
@@ -96,6 +96,7 @@ type roadmapPlan struct {
 
 type roadmapStep struct {
 	ID            string        `json:"id"`
+	Track         string        `json:"track"`
 	Phase         string        `json:"phase"`
 	Title         string        `json:"title"`
 	Description   string        `json:"description"`
@@ -109,6 +110,7 @@ type roadmapStep struct {
 type roadmapTask struct {
 	ID            string             `json:"id"`
 	SourceID      string             `json:"source_id,omitempty"`
+	Track         string             `json:"track"`
 	Title         string             `json:"title"`
 	TaskType      string             `json:"task_type"`
 	DueDate       *string            `json:"due_date,omitempty"`
@@ -389,17 +391,21 @@ func (h Roadmap) savePlan(ctx context.Context, userID string, plan roadmapPlan) 
 		var stepID string
 		err := tx.QueryRowContext(ctx, `
 			INSERT INTO roadmap_steps (
-				roadmap_plan_id, source_id, position, phase, title, description,
+				roadmap_plan_id, source_id, position, track, phase, title, description,
 				status, estimated_time, impact_score
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			RETURNING id::text
-		`, planID, step.ID, stepIndex+1, step.Phase, step.Title, step.Description,
+		`, planID, step.ID, stepIndex+1, step.Track, step.Phase, step.Title, step.Description,
 			step.Status, step.EstimatedTime, step.ImpactScore).Scan(&stepID)
 		if err != nil {
 			return "", fmt.Errorf("insert roadmap step %q: %w", step.ID, err)
 		}
 
 		for taskIndex, task := range step.Tasks {
+			taskTrack := task.Track
+			if !validRoadmapTrack(taskTrack) {
+				taskTrack = step.Track
+			}
 			taskType := task.TaskType
 			if taskType == "" {
 				taskType = "other"
@@ -411,10 +417,10 @@ func (h Roadmap) savePlan(ctx context.Context, userID string, plan roadmapPlan) 
 			}
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO roadmap_tasks (
-					roadmap_step_id, source_id, position, title, task_type,
+					roadmap_step_id, source_id, position, track, title, task_type,
 					due_date, due_date_source
-				) VALUES ($1, $2, $3, $4, $5, $6, $7)
-			`, stepID, task.ID, taskIndex+1, task.Title, taskType, task.DueDate, dueDateSource); err != nil {
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`, stepID, task.ID, taskIndex+1, taskTrack, task.Title, taskType, task.DueDate, dueDateSource); err != nil {
 				return "", fmt.Errorf("insert roadmap task %q: %w", task.ID, err)
 			}
 			var taskDBID string
@@ -470,7 +476,7 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 	}
 
 	stepRows, err := tx.QueryContext(ctx, `
-		SELECT id::text, source_id, phase, title, description, status,
+		SELECT id::text, source_id, track, phase, title, description, status,
 		       estimated_time, impact_score
 		FROM roadmap_steps
 		WHERE roadmap_plan_id = $1
@@ -486,7 +492,7 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 	var storedSteps []storedStep
 	for stepRows.Next() {
 		var item storedStep
-		if err := stepRows.Scan(&item.dbID, &item.step.ID, &item.step.Phase, &item.step.Title,
+		if err := stepRows.Scan(&item.dbID, &item.step.ID, &item.step.Track, &item.step.Phase, &item.step.Title,
 			&item.step.Description, &item.step.Status, &item.step.EstimatedTime, &item.step.ImpactScore); err != nil {
 			stepRows.Close()
 			return roadmapPlan{}, fmt.Errorf("scan roadmap step: %w", err)
@@ -505,7 +511,7 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 
 	for _, item := range storedSteps {
 		taskRows, err := tx.QueryContext(ctx, `
-			SELECT id::text, source_id, title, task_type,
+			SELECT id::text, source_id, track, title, task_type,
 			       due_date::text, due_date_source, completed, completed_at
 			FROM roadmap_tasks
 			WHERE roadmap_step_id = $1
@@ -520,7 +526,7 @@ func (h Roadmap) loadActivePlan(ctx context.Context, userID string) (roadmapPlan
 			var dueDate, dueDateSource sql.NullString
 			var taskType sql.NullString
 			var completedAt sql.NullTime
-			if err := taskRows.Scan(&task.ID, &task.SourceID, &task.Title, &taskType,
+			if err := taskRows.Scan(&task.ID, &task.SourceID, &task.Track, &task.Title, &taskType,
 				&dueDate, &dueDateSource, &task.Completed, &completedAt); err != nil {
 				taskRows.Close()
 				return roadmapPlan{}, fmt.Errorf("scan roadmap task: %w", err)
@@ -659,11 +665,15 @@ func (h Roadmap) generatePlan(ctx context.Context, profile roadmapProfile, prefe
 Используй целевые университеты для приоритизации требований к поступлению. Учитывай доступную нагрузку в %d часов в неделю и равномерно распределяй подготовку. Экзамены и академический профиль используй для выбора приоритетов и исходного уровня; если GPA не указан, не предполагай его.
 Начальный класс: %d. Конечный класс: 11. Учебный год начала: %d-%d. Учебный год окончания: %d-%d.
 Верни поля title, summary, start_grade, end_grade, start_academic_year, end_academic_year, steps.
-Составь ровно %d-%d milestones в steps. Каждый milestone — короткий этап плана, привязанный к подходящему учебному году или периоду.
-Для каждого milestone верни: id, phase, title, description, status (in_progress или upcoming), estimatedTime, impactScore от 0 до 100, tasks и artifacts.
-В description каждого milestone укажи конкретный, измеримый критерий завершения (например, количество выполненных пробных тестов или созданных артефактов, либо целевой диапазон баллов); выбирай реалистичные метрики по профилю, не обещай результат экзамена.
+Составь ровно %d-%d milestones в steps. Распредели milestones сбалансированно по трем направлениям (track):
+- "academics": школьный GPA, олимпиады, научные исследования, подготовка к экзаменам (SAT, IELTS, TOEFL, NUET и др.).
+- "leadership": создание или руководство школьными/городскими клубами, капитанство, наставничество (mentorship), управление проектами и организация мероприятий.
+- "impact": социальные и волонтерские проекты, создание реальных IT/бизнес-продуктов для людей, просветительские инициативы с измеримым результатом.
+В плане должен присутствовать минимум один milestone для каждого из трех треков (academics, leadership, impact).
+Для каждого milestone верни: id, track ("academics", "leadership" или "impact"), phase, title, description, status (in_progress или upcoming), estimatedTime, impactScore от 0 до 100, tasks и artifacts.
+В description каждого milestone укажи конкретный, измеримый критерий завершения; выбирай реалистичные метрики по профилю, не обещай результат экзамена.
 impactScore — приоритет milestone по шкале: 0-39 низкий, 40-69 средний, 70-89 высокий, 90-100 критический.
-Для каждого milestone укажи ровно %d-%d конкретные задачи. Каждая task: id, title, task_type (ec, test, essay, recommendation, academic или other), completed=false, micro_steps: [].
+Для каждого milestone укажи ровно %d-%d конкретные атомарные задачи (выполнимые за 1-2 рабочих сессии). Каждая task: id, track ("academics", "leadership" или "impact" — соответствует треку задачи), title, task_type (ec, test, essay, recommendation, academic или other), completed=false, micro_steps: [].
 Не добавляй точные due_date, если их нельзя обосновать профилем. Не дроби задачи на подзадачи и не добавляй лишние этапы или задачи.
 Укажи start_grade=%d, end_grade=11, start_academic_year=%d-%d, end_academic_year=%d-%d.`,
 		profileJSON, preferences, profile.WeeklyHours, profile.SchoolGrade, startYear, startYear+1, endYear, endYear+1,
@@ -832,22 +842,36 @@ func validateRoadmapPlan(plan roadmapPlan, schoolGrade, startYear, endYear int) 
 	if len(plan.Steps) < minRoadmapMilestones || len(plan.Steps) > maxRoadmapMilestones {
 		return errors.New("plan has an invalid milestone count")
 	}
+	seenTracks := make(map[string]bool, 3)
 	for _, step := range plan.Steps {
-		if step.ID == "" || step.Phase == "" || step.Title == "" || step.Description == "" ||
+		if step.ID == "" || !validRoadmapTrack(step.Track) || step.Phase == "" || step.Title == "" || step.Description == "" ||
 			(step.Status != "in_progress" && step.Status != "upcoming") ||
 			step.ImpactScore < 0 || step.ImpactScore > 100 ||
 			len(step.Tasks) < minRoadmapTasksPerMilestone || len(step.Tasks) > maxRoadmapTasksPerMilestone {
 			return errors.New("plan contains an invalid step")
 		}
+		seenTracks[step.Track] = true
 		for _, task := range step.Tasks {
 			if task.ID == "" || len(task.ID) > 100 || task.Title == "" ||
-				!validRoadmapTaskType(task.TaskType) ||
+				!validRoadmapTrack(task.Track) || !validRoadmapTaskType(task.TaskType) ||
 				(task.DueDate != nil && !validDate(*task.DueDate)) || len(task.MicroSteps) > 0 {
 				return errors.New("plan contains an invalid task")
 			}
 		}
 	}
+	if !seenTracks["academics"] || !seenTracks["leadership"] || !seenTracks["impact"] {
+		return errors.New("plan must cover academics, leadership, and impact tracks")
+	}
 	return nil
+}
+
+func validRoadmapTrack(track string) bool {
+	switch track {
+	case "academics", "leadership", "impact":
+		return true
+	default:
+		return false
+	}
 }
 
 func validRoadmapTaskType(taskType string) bool {

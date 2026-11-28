@@ -22,11 +22,16 @@ LLM_MODEL=gemini-2.5-flash-lite,gemini-2.5-pro
 
 On startup, the server connects to PostgreSQL and applies unapplied SQL files
 from `backend/migrations`. Migration files are embedded in the Go binary.
+To roll back all applied migrations and exit without starting the server, run:
 
 ```bash
 cd backend
 go run ./cmd/server
+go run ./cmd/server --rollback
 ```
+
+Rollback requires a `.down.sql` file for each applied migration and may remove
+database data.
 
 The server will listen on `http://0.0.0.0:8080` by default.
 
