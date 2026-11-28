@@ -307,6 +307,66 @@
   text-align: right;
 }
 
+.roadmap-track-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.roadmap-track-switcher__tab {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.roadmap-track-switcher__tab:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  color: var(--color-text-primary);
+}
+
+.roadmap-track-switcher__tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+.roadmap-track-switcher__tab--active {
+  border-color: color-mix(in srgb, var(--color-brand) 65%, var(--color-border));
+  background: color-mix(in srgb, var(--color-brand) 8%, var(--color-bg-surface));
+  color: var(--color-brand);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-brand) 10%, transparent);
+}
+
+.roadmap-track-switcher__tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.roadmap-track-switcher__count {
+  display: inline-grid;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
 .roadmap-grid {
   display: grid;
   grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.18fr);
@@ -465,6 +525,20 @@
   white-space: normal;
 }
 
+.roadmap-details--empty {
+  display: grid;
+  min-height: 12rem;
+  place-items: center;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.roadmap-details--empty p {
+  max-width: 34rem;
+  margin: 0;
+  line-height: 1.6;
+}
+
 @media (max-width: 900px) {
   .roadmap-container {
     padding: 7rem 1.5rem 3rem;
@@ -512,6 +586,15 @@
   .roadmap-grid {
     gap: 1.5rem;
     margin-top: 1.75rem;
+  }
+
+  .roadmap-track-switcher {
+    gap: 0.5rem;
+  }
+
+  .roadmap-track-switcher__tab {
+    padding: 0.8rem;
+    font-size: 0.82rem;
   }
 
   .roadmap-timeline {

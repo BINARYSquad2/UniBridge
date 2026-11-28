@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS roadmap_steps (
     roadmap_plan_id UUID NOT NULL REFERENCES roadmap_plans(id) ON DELETE CASCADE,
     source_id VARCHAR(100) NOT NULL,
     position SMALLINT NOT NULL CHECK (position > 0),
+    track VARCHAR(20) NOT NULL DEFAULT 'academics' CHECK (track IN ('academics', 'leadership', 'impact')),
     phase VARCHAR(120) NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
@@ -37,11 +38,15 @@ CREATE TABLE IF NOT EXISTS roadmap_steps (
     UNIQUE (roadmap_plan_id, position)
 );
 
+CREATE INDEX IF NOT EXISTS idx_roadmap_steps_plan_track
+    ON roadmap_steps (roadmap_plan_id, track);
+
 CREATE TABLE IF NOT EXISTS roadmap_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     roadmap_step_id UUID NOT NULL REFERENCES roadmap_steps(id) ON DELETE CASCADE,
     source_id VARCHAR(100) NOT NULL,
     position SMALLINT NOT NULL CHECK (position > 0),
+    track VARCHAR(20) NOT NULL DEFAULT 'academics' CHECK (track IN ('academics', 'leadership', 'impact')),
     title VARCHAR(500) NOT NULL,
     task_type VARCHAR(20) CHECK (task_type IN ('ec', 'test', 'essay', 'recommendation', 'academic', 'other')),
     due_date DATE,
@@ -56,6 +61,8 @@ CREATE TABLE IF NOT EXISTS roadmap_tasks (
     CHECK ((due_date IS NULL) = (due_date_source IS NULL))
 );
 
+CREATE INDEX IF NOT EXISTS idx_roadmap_tasks_step_track
+    ON roadmap_tasks (roadmap_step_id, track);
 CREATE INDEX IF NOT EXISTS idx_roadmap_tasks_open_due
     ON roadmap_tasks (due_date) WHERE NOT completed;
 CREATE INDEX IF NOT EXISTS idx_roadmap_tasks_completed_at
@@ -106,6 +113,7 @@ CREATE TABLE IF NOT EXISTS kanban_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     source_roadmap_task_id UUID REFERENCES roadmap_tasks(id) ON DELETE SET NULL,
+    track VARCHAR(20) NOT NULL DEFAULT 'academics' CHECK (track IN ('academics', 'leadership', 'impact')),
     title VARCHAR(500) NOT NULL,
     task_type VARCHAR(100) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
@@ -122,6 +130,8 @@ CREATE TABLE IF NOT EXISTS kanban_tasks (
 
 CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_created
     ON kanban_tasks (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_track
+    ON kanban_tasks (user_id, track);
 
 CREATE TABLE IF NOT EXISTS kanban_micro_steps (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

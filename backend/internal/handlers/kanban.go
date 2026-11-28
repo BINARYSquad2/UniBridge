@@ -29,6 +29,7 @@ type kanbanTaskArtifact struct {
 
 type kanbanTask struct {
 	ID         string              `json:"id"`
+	Track      string              `json:"track"`
 	Title      string              `json:"title"`
 	TaskType   string              `json:"task_type"`
 	Status     string              `json:"status"`
@@ -37,6 +38,7 @@ type kanbanTask struct {
 }
 
 type createKanbanTaskRequest struct {
+	Track      string            `json:"track"`
 	Title      string            `json:"title"`
 	TaskType   string            `json:"task_type"`
 	Status     string            `json:"status"`
@@ -44,6 +46,7 @@ type createKanbanTaskRequest struct {
 }
 
 type updateKanbanTaskRequest struct {
+	Track       string              `json:"track"`
 	Status      string              `json:"status"`
 	MicroSteps  *[]kanbanMicroStep  `json:"micro_steps"`
 	Description *string             `json:"description"`
@@ -63,7 +66,7 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.QueryContext(r.Context(), `
-		SELECT task.id::text, task.title, task.task_type, task.status,
+		SELECT task.id::text, task.track, task.title, task.task_type, task.status,
 			COALESCE(jsonb_agg(jsonb_build_object(
 				'id', micro.id::text,
 				'title', micro.title,
@@ -89,7 +92,7 @@ func (h Kanban) ListTasks(w http.ResponseWriter, r *http.Request) {
 		var microStepsJSON string
 		var artifactType, artifactValue sql.NullString
 		if err := rows.Scan(
-			&task.ID, &task.Title, &task.TaskType, &task.Status, &microStepsJSON,
+			&task.ID, &task.Track, &task.Title, &task.TaskType, &task.Status, &microStepsJSON,
 			&artifactType, &artifactValue,
 		); err != nil {
 			writeKanbanError(w, "scan task", err)
@@ -154,7 +157,7 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := tx.QueryContext(r.Context(), `
-		SELECT task.id::text, task.title, COALESCE(task.task_type, 'other'), task.completed,
+		SELECT task.id::text, task.track, task.title, COALESCE(task.task_type, 'other'), task.completed,
 			COALESCE(jsonb_agg(jsonb_build_object(
 				'id', micro.id::text,
 				'title', micro.title,
@@ -175,9 +178,9 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 
 	importedTasks := make([]kanbanTask, 0)
 	for rows.Next() {
-		var sourceID, title, taskType, microStepsJSON string
+		var sourceID, track, title, taskType, microStepsJSON string
 		var completed bool
-		if err := rows.Scan(&sourceID, &title, &taskType, &completed, &microStepsJSON); err != nil {
+		if err := rows.Scan(&sourceID, &track, &title, &taskType, &completed, &microStepsJSON); err != nil {
 			writeKanbanError(w, "scan roadmap task", err)
 			return
 		}
@@ -201,7 +204,7 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		importedTasks = append(importedTasks, kanbanTask{
-			ID: sourceID, Title: title, TaskType: taskType,
+			ID: sourceID, Track: track, Title: title, TaskType: taskType,
 			Status: status, MicroSteps: microSteps,
 		})
 	}
@@ -218,11 +221,11 @@ func (h Kanban) ImportRoadmapStep(w http.ResponseWriter, r *http.Request) {
 	for _, task := range importedTasks {
 		var kanbanTaskID string
 		err := tx.QueryRowContext(r.Context(), `
-			INSERT INTO kanban_tasks (user_id, source_roadmap_task_id, title, task_type, status)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO kanban_tasks (user_id, source_roadmap_task_id, track, title, task_type, status)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			ON CONFLICT (user_id, source_roadmap_task_id) DO NOTHING
 			RETURNING id::text
-		`, userID, task.ID, task.Title, task.TaskType, task.Status).Scan(&kanbanTaskID)
+		`, userID, task.ID, task.Track, task.Title, task.TaskType, task.Status).Scan(&kanbanTaskID)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
@@ -268,8 +271,12 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.Title = strings.TrimSpace(input.Title)
+	input.Track = strings.TrimSpace(input.Track)
 	input.TaskType = strings.TrimSpace(input.TaskType)
 	input.Status = strings.TrimSpace(input.Status)
+	if input.Track == "" {
+		input.Track = "academics"
+	}
 	if input.TaskType == "" {
 		input.TaskType = "other"
 	}
@@ -278,6 +285,10 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Title == "" || len(input.Title) > 500 || len(input.TaskType) > 100 || len(input.MicroSteps) > 100 {
 		writeAuthError(w, http.StatusBadRequest, "task fields are invalid")
+		return
+	}
+	if !validRoadmapTrack(input.Track) {
+		writeAuthError(w, http.StatusBadRequest, "invalid task track")
 		return
 	}
 	if input.Status != "todo" && input.Status != "in_progress" && input.Status != "done" {
@@ -297,11 +308,11 @@ func (h Kanban) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	var task kanbanTask
 	err = tx.QueryRowContext(r.Context(), `
-		INSERT INTO kanban_tasks (user_id, title, task_type, status)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id::text, title, task_type, status
-	`, userID, input.Title, input.TaskType, input.Status).Scan(
-		&task.ID, &task.Title, &task.TaskType, &task.Status,
+		INSERT INTO kanban_tasks (user_id, track, title, task_type, status)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id::text, track, title, task_type, status
+	`, userID, input.Track, input.Title, input.TaskType, input.Status).Scan(
+		&task.ID, &task.Track, &task.Title, &task.TaskType, &task.Status,
 	)
 	if err != nil {
 		writeKanbanError(w, "create task", err)
@@ -347,6 +358,11 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	input.Track = strings.TrimSpace(input.Track)
+	if input.Track != "" && !validRoadmapTrack(input.Track) {
+		writeAuthError(w, http.StatusBadRequest, "invalid task track")
+		return
+	}
 	if input.Status != "todo" && input.Status != "in_progress" && input.Status != "done" {
 		writeAuthError(w, http.StatusBadRequest, "invalid task status")
 		return
@@ -387,14 +403,15 @@ func (h Kanban) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	var savedArtifactType, savedArtifactValue sql.NullString
 	err = tx.QueryRowContext(r.Context(), `
 		UPDATE kanban_tasks
-		SET status = $1,
-			artifact_type = COALESCE($2, artifact_type),
-			artifact_value = COALESCE($3, artifact_value),
+		SET track = COALESCE(NULLIF($1, ''), track),
+			status = $2,
+			artifact_type = COALESCE($3, artifact_type),
+			artifact_value = COALESCE($4, artifact_value),
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4 AND user_id = $5
-		RETURNING id::text, title, task_type, status, artifact_type, artifact_value
-	`, input.Status, artifactType, artifactValue, r.PathValue("taskID"), userID).Scan(
-		&task.ID, &task.Title, &task.TaskType, &task.Status,
+		WHERE id = $5 AND user_id = $6
+		RETURNING id::text, track, title, task_type, status, artifact_type, artifact_value
+	`, input.Track, input.Status, artifactType, artifactValue, r.PathValue("taskID"), userID).Scan(
+		&task.ID, &task.Track, &task.Title, &task.TaskType, &task.Status,
 		&savedArtifactType, &savedArtifactValue,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

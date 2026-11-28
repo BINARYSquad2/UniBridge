@@ -98,8 +98,8 @@ func TestEmbeddedMigrationVersionsAreContiguous(t *testing.T) {
 		expected++
 	}
 
-	if expected != 3 {
-		t.Fatalf("total migration count = %d, want 3", expected)
+	if expected != 4 {
+		t.Fatalf("total migration count = %d, want 4", expected)
 	}
 }
 
@@ -144,8 +144,8 @@ func TestApplyFromEmptyDatabase(t *testing.T) {
 	if err := db.QueryRow(`SELECT version, dirty FROM schema_migrations`).Scan(&version, &dirty); err != nil {
 		t.Fatalf("read applied migration version: %v", err)
 	}
-	if version != 14 || dirty {
-		t.Fatalf("migration state = (%d, dirty=%t), want (14, dirty=false)", version, dirty)
+	if version != 4 || dirty {
+		t.Fatalf("migration state = (%d, dirty=%t), want (4, dirty=false)", version, dirty)
 	}
 
 	var schemaReady bool
@@ -154,6 +154,13 @@ func TestApplyFromEmptyDatabase(t *testing.T) {
 		   AND to_regclass('public.student_profiles') IS NOT NULL
 		   AND to_regclass('public.roadmap_plans') IS NOT NULL
 		   AND to_regclass('public.kanban_tasks') IS NOT NULL
+		   AND (
+		       SELECT count(*) = 3
+		       FROM information_schema.columns
+		       WHERE table_schema = 'public'
+		         AND column_name = 'track'
+		         AND table_name IN ('roadmap_steps', 'roadmap_tasks', 'kanban_tasks')
+		   )
 		   AND (
 		       SELECT count(*) = 5
 		       FROM information_schema.columns
